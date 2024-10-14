@@ -8,4 +8,4 @@ RUN pip3 install --upgrade pip -r requirements.txt
 # в рабочую директорию контейнера
 # Устанавливаем порт, который будет использоваться для сервера
 EXPOSE 5000
-CMD [ "python3", "-m" , "sync_service", "run", "--host=0.0.0.0"]
+CMD [ "python3", "-m" , "flask", "--app", "sync_service" ,"run", "--host=0.0.0.0"]
