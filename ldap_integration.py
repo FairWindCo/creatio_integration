@@ -1,8 +1,10 @@
 # pyinstaller --noconfirm --onefile --console C:\Users\User\PycharmProjects\ldap\ldap_integration.py
 import json
+from datetime import datetime
 
 from creatio.creatio_api import get_api_connector
 from creatio.creatio_objects import ContactHolders
+from creatio.db import get_db_connection
 from ldap_access.ldap_data_access import get_ad_domain_users, print_users
 
 
@@ -30,28 +32,35 @@ def convert_ldap_to_ldap_entry_json(name_prefix, user: dict) -> dict:
     }
 
 
-if __name__ == '__main__':
-    with open('import.config') as f:
-        config = json.load(f)
+def save_data_to_json_file(data, file_name):
+    with open(file_name, "w") as file:
+        json.dump(data, file)
+
+
+def print_log(log_entries: list, record: str):
+    print(record)
+    log_entries.append(f"{datetime.now().strftime('%d%m%y %H%M%S')}: {record}")
+
+
+def sync_users(config):
     global_user_data = config.get("domain_user", {'login': 'admin', 'password': '<PASSWORD>'})
     debug_mode = config.get("debug_mode", False)
     overwrite_mode = config.get("overwrite_mode", True)
-
+    logs_record = []
     api = get_api_connector(config['api'])
     api.debug = debug_mode
 
     if api.login():
         if debug_mode:
-            print("Login successful")
+            print_log(logs_record, "Login successful")
         ldap_entries = api.get_ldap_info()
         api_users = api.get_short_users()
-
         contacts_holder = ContactHolders(api)
-        print(api_users)
         domains = config.get("domains", [])
         for domain in domains:
             if domain.get("ignore_domain", False):
                 continue
+            print_log(logs_record, f"process AD domain: {domain['name']}")
             users = get_ad_domain_users(domain, global_user_data)
             can_create_contact = domain.get("can_create_contact", False)
             if debug_mode:
@@ -62,6 +71,9 @@ if __name__ == '__main__':
             for user in users:
                 ldap_record = convert_ldap_to_ldap_entry_json(domain_preffix, user)
                 account_name = ldap_record['Name']
+
+                print_log(logs_record, f"process AD user: {account_name}")
+
                 if account_name in ldap_entries and overwrite_mode:
                     api.update_ldap_entry(ldap_entries[account_name]['Id'], ldap_record)
                     current_ldap_entry_id = ldap_entries[account_name]['Id']
@@ -71,20 +83,35 @@ if __name__ == '__main__':
                     current_ldap_entry_id = new_record['Id']
 
                 if account_name in api_users:
-                    print(f'User {account_name} exists')
+                    print_log(logs_record, f'INFO: User {account_name} already exists')
                 else:
                     # contact_id = api.find_or_create_contact(user['cn'], domain_preffix, account_name, ldap_record,
                     #                     #                                         can_create_contact)
-                    contact_id = contacts_holder.find_or_create_contact(user['cn'], domain_preffix, account_name, ldap_record,
-                                                           can_create_contact)
+                    contact_id = contacts_holder.find_or_create_contact(user['cn'], domain_preffix, account_name,
+                                                                        ldap_record,
+                                                                        can_create_contact)
 
                     if contact_id:
-                        print(f'Use {contact_id} contact')
+                        print_log(logs_record,f'Use ID:{contact_id} for contact: {user["cn"]}')
                         # user = api.create_user(account_name, current_ldap_entry_id, ldap_record, user["cn"])
                         # if user:
                         #     print(f'User {account_name} created {user["Id"]}')
                         # else:
                         #     print(f'Error: user {account_name} creation failed')
 
+                    else:
+                        print_log(logs_record, "WARNING: contact {user['cn']} - not found")
+
+        save_data_to_json_file(ldap_entries, '/opt/logs/ldap_entries.json')
+        save_data_to_json_file(api_users, '/opt/logs/creatio_users.json')
     else:
-        print("Login failed")
+        print_log(logs_record, "ERROR: Login failed")
+    with open("/opt/logs/operation.log", "w") as file:
+        for log_record in logs_record:
+            file.write(f"{log_record}\n")
+
+
+if __name__ == '__main__':
+    with open('import.config') as f:
+        config = json.load(f)
+    sync_users(config)

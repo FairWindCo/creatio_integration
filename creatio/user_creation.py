@@ -27,8 +27,10 @@ def insert_user_record(cursor, name, contact_id, ldap_record,
 def combine_users_records(cursor, creatio_api,
                           creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
                           sysculture_id='A5420246-0A8E-E111-84A3-00155D054C03',
-                          debug=False
+                          debug=False, log_records: list = None
                           ):
+    if log_records is None:
+        log_records = []
     users_name, users_login = creatio_api.get_user_names_set()
     ldap_record_dict = creatio_api.get_ldap_by_domain_login()
     print(users_name)
@@ -45,9 +47,13 @@ def combine_users_records(cursor, creatio_api,
                 ldap_record = ldap_record_dict[contact_login]
 
                 simple_login_name = contact_login.split('\\')[1]
-
-                insert_user_record(cursor, simple_login_name, contact_id, ldap_record, creator_id, sysculture_id, debug)
+                try:
+                    insert_user_record(cursor, simple_login_name, contact_id, ldap_record, creator_id, sysculture_id, debug)
+                except Exception as e:
+                    log_records.append(f"ERROR CREATE USER: {e}")
             else:
-                print('User name: {} - not exists, but ldap login {}- does not exist! '.format(contact_name, contact_login))
+                log_records.append('User name: {} - not exists, but ldap login {}- does not exist! '.format(contact_name,
+                                                                                               contact_login))
         else:
-            print('User name: {} login:{} - exists'.format(contact_name, contact_login))
+            log_records.append('User name: {} login:{} - exists'.format(contact_name, contact_login))
+    return log_records

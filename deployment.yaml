@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: json-configmap
+  namespace: default
+data:
+  config_develop.json: |
+    {
+     "creator_name": "Supervisor",
+     "debug_mode": true,
+     "domain_user":{
+        "login":"domain_user",
+        "password":"domain_password"
+        },
+     "domains":[
+        {
+            "name":"BS",
+            "full_name": "bs.local.erc",
+            "ldap_server":"dcbs0201.bs.local.erc",
+            "dn":"DC=BS,DC=local,DC=erc",
+            "can_create_contact": false
+            },
+        {
+            "name":"ERC",
+            "full_name": "local.erc",
+            "ldap_server":"dc01.local.erc",
+            "dn":"OU=Prog W7,OU=DomainUsers,DC=local,DC=erc",
+            "can_create_contact": true
+            }
+
+        ],
+     "database":{
+                "SERVER":"scorch0201.bs.local.erc",
+                "DATABASE":"SaE_M_SeEENU_6798411_0604",
+                "UID":"db_user",
+                "PWD":"db_password"
+       },
+     "api":{
+        "userid":"creatio_user",
+        "password": "creatio_password",
+        "use_login": true
+        }
+    }
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ldap-sync-secret
+  namespace: default
+stringData:
+  db_username: "admin"
+  db_password: "super_password"
+  ldap_username: "admin"
+  ldap_password: "super_password"
+  creatio_username: "admin"
+  creatio_password: "super_password"
+  web_username: "admin"
+  web_password: "super_password"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-deployment-v2
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: secretvolume
+          mountPath: "/opt/secrets"
+          readOnly: true
+        - name: config-volume
+          mountPath: "/opt/config"
+          readOnly: true
+        - mountPath: "/opt/logs"
+          name: log-volume
+      volumes:
+      - name: secretvolume
+        secret:
+          secretName: ldap-sync-secret
+      - name: config-volume
+        configMap:
+          name: json-configmap
+      - name: log-volume
+        emptyDir: {}
