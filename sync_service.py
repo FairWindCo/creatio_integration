@@ -140,7 +140,7 @@ update_interval = 24 * 60 * 60
 last_ldap_sync = None
 last_users_sync = None
 
-if __name__ == '__main__':
+with app.app_context():
     config_path = '/opt/config/import.config'
     if os.path.exists(config_path):
         with open(config_path) as f:
@@ -152,9 +152,13 @@ if __name__ == '__main__':
         'web_username': '',
         'web_password': '',
     })
-    creatio_api = get_api_connector(config['api'])
+    if 'api' in config:
+        creatio_api = get_api_connector(config['api'])
     update_interval = config.get('update_interval', 60*60*24)
     scheduler.add_job(job, 'interval', seconds=update_interval)
     scheduler.start()
+
+
+if __name__ == '__main__':
     app.run()
     scheduler.shutdown()
