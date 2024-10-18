@@ -7,6 +7,8 @@ from flask import Flask, json
 from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
+from creatio_users import sync_ldap_user_contacts_records
+from ldap_integration import sync_users
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
@@ -76,18 +78,24 @@ def get_creatio_users():
 
 @app.route('/health')
 def health():
+    global last_users_sync
+    global last_ldap_sync
+    global heartbeat
     current_time =datetime.now().timestamp()
-    users_sync = last_users_sync is not None and (current_time - last_users_sync) < update_interval
-    ldap_sync = last_ldap_sync is not None and (current_time - last_ldap_sync) < update_interval
+    users_sync = (current_time - last_users_sync) < update_interval
+    ldap_sync = (current_time - last_ldap_sync) < update_interval
+    heartbeat_status = (current_time - heartbeat) < 60
     status = users_sync and ldap_sync
     return {"status": "ok" if status else "failed",
             "sync_ldap_entries":"ok" if ldap_sync else "failed",
             "sync_users": "ok" if users_sync else "failed",
+            "heartbeat_status": "ok" if heartbeat_status else "failed",
             "current_time": datetime.now().isoformat()}
 
 
-def job():
-    print("Scheduled job executed")
+def heartbeat_job():
+    global heartbeat
+    heartbeat = datetime.now().timestamp()
 
 
 def read_file(file_name):
@@ -137,8 +145,9 @@ def update_config_secrets(config: dict, base_path: str = '/opt/secrets/', update
 
 creatio_api = None
 update_interval = 24 * 60 * 60
-last_ldap_sync = None
-last_users_sync = None
+last_ldap_sync = 0
+last_users_sync = 0
+heartbeat = 0
 
 with app.app_context():
     config_path = '/opt/config/import.config'
@@ -155,7 +164,9 @@ with app.app_context():
     if 'api' in config:
         creatio_api = get_api_connector(config['api'])
     update_interval = config.get('update_interval', 60*60*24)
-    scheduler.add_job(job, 'interval', seconds=update_interval)
+    scheduler.add_job(heartbeat_job, 'interval', seconds=60)
+    scheduler.add_job(sync_users, 'interval', seconds=update_interval, args=[config])
+    scheduler.add_job(sync_ldap_user_contacts_records, 'interval', seconds=update_interval, args=[config])
     scheduler.start()
 
 
