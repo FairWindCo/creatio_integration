@@ -53,7 +53,7 @@ def ldaps():
 
 @app.route('/users')
 @auth.login_required
-def ldaps():
+def users():
     return read_file('/opt/logs/creatio_users.json')
 
 
