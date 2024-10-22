@@ -57,27 +57,27 @@ stringData:
   creatio_password: "super_password"
   web_username: "admin"
   web_password: "super_password"
-
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: web-deployment-v2
+  name: ldap-sync
   namespace: default
 spec:
   selector:
     matchLabels:
-      app: nginx
+      app: ldap-sync
   template:
     metadata:
       labels:
-        app: nginx
+        app: ldap-sync
     spec:
       containers:
-      - name: nginx
-        image: nginx:latest
+      - name: ldap-sync
+        image: fairwind81/ldap-sync:latest
         ports:
-        - containerPort: 80
+        - containerPort: 5000
+          name: sync-web-svc
         volumeMounts:
         - name: secretvolume
           mountPath: "/opt/secrets"
@@ -96,3 +96,18 @@ spec:
           name: json-configmap
       - name: log-volume
         emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sync-service
+spec:
+  type: NodePort
+  selector:
+    app: ldap-sync
+  ports:
+  - name: sync-service-port
+    protocol: TCP
+    port: 5000
+    targetPort: sync-web-svc
+    nodePort: 30000

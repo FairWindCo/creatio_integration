@@ -15,4 +15,4 @@ RUN pip3 install gunicorn
 # Устанавливаем порт, который будет использоваться для сервера
 EXPOSE 5000
 # CMD [ "python3", "-m" , "flask", "--app", "sync_service" ,"run", "--host=0.0.0.0"]
-CMD ["gunicorn", "sync_service:app", "-b", "0.0.0.0:5000", "-w", "4"]
+CMD ["gunicorn", "sync_service:app", "-b", "0.0.0.0:5000", "-w", "2", "--timeout", "600"]

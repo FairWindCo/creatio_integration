@@ -10,7 +10,8 @@ class Creatio:
     def __init__(self, username, password,
                  use_barrier=False,
                  service_url="https://sd.bs.local.erc/",
-                 ident_service_url="https://ident.sd.bs.local.erc:8093/"):
+                 ident_service_url="https://ident.sd.bs.local.erc:8093/",
+                 debug_mode=False):
         self.username = username
         self.password = password
         self.service_url = service_url
@@ -19,7 +20,7 @@ class Creatio:
         self.session = requests.Session()
         self.barrier = None
         self.logged_in = False
-        self.debug = True
+        self.debug = debug_mode
         self.verify = False
 
     def login(self) -> bool:
@@ -235,7 +236,6 @@ class CreatioAPI(Creatio):
                                         )
         return {ldap['FullName']: ldap for ldap in ldap_entries}
 
-
     def get_ldap_by_domain_login(self):
         ldap_entries = self.get_objects('LDAPElement',
                                         fields=['Id', 'Name', 'FullName', 'isActive', 'Description',
@@ -267,7 +267,8 @@ class CreatioAPI(Creatio):
 
     def get_short_contacts(self, fields: list = None) -> list | None:
         if fields is None:
-            fields = ['Id', 'Name', 'FullName', 'UsrERCLogin']
+            fields = ['Id', 'Name', 'UsrERCLogin']
+            # fields = ['Id', 'Name', 'FullName', 'UsrERCLogin']
         contacts = self.get_objects('Contact',
                                     fields=fields,
                                     )
@@ -277,13 +278,13 @@ class CreatioAPI(Creatio):
         contacts = self.get_short_contacts()
         by_name = dict()
         by_login = dict()
-        by_full_name = dict()
+        # by_full_name = dict()
         if contacts:
             for contact in contacts:
                 by_name[contact['Name']] = contact
                 by_login[contact['UsrERCLogin']] = contact
-                by_full_name[contact['FullName']] = contact
-        return by_name, by_login, by_full_name
+                # by_full_name[contact['FullName']] = contact
+        return by_name, by_login  # , by_full_name
 
     def get_short_users(self):
         users = self.get_objects('SysAdminUnit',
@@ -291,31 +292,100 @@ class CreatioAPI(Creatio):
                                  #         'LDAPEntryId', 'LDAPEntryDN', 'SynchronizeWithLDAP', 'Email', 'Phone'],
                                  fields=['Id', 'Name', 'SysAdminUnitTypeValue', 'Active',
                                          'LDAPEntryId', 'LDAPEntryDN', 'SynchronizeWithLDAP', 'LDAPElementId'],
-                                 # expand='Type($select=Id,Name)'
+                                 # expand='Type($select=Id,Name)',
+                                 filter='SysAdminUnitTypeValue eq 4'
                                  )
 
         return {user['Name']: user for user in users}
 
+    def get_user_roles_dict(self):
+        users = self.get_objects('SysAdminUnit',
+                                 fields=['Id', 'Name',],
+                                 filter='SysAdminUnitTypeValue eq 0'
+                                 )
+
+        return {user['Name']: user for user in users}
+
+    def get_user_roles_by_name(self, role_name):
+        #https://sd.bs.local.erc/0/odata/SysAdminUnit?%24filter=Name%20eq%20%27All%20employees%27%20and%20SysAdminUnitTypeValue%20eq%200
+        users = self.get_objects('SysAdminUnit',
+                                 fields=['Id', 'Name',],
+                                 filter=f"Name eq '{role_name}' and SysAdminUnitTypeValue eq 0"
+                                 )
+        if users:
+            return users[0]
+        return None
+
+    def get_users_with_domain_login(self):
+        users = self.get_objects('SysAdminUnit',
+                                 # fields=['Id', 'Name', 'SysAdminUnitTypeValue', 'Active', 'Description',
+                                 #         'LDAPEntryId', 'LDAPEntryDN', 'SynchronizeWithLDAP', 'Email', 'Phone'],
+                                 fields=['Id', 'Name', 'SysAdminUnitTypeValue', 'Active',
+                                         'LDAPEntryId', 'LDAPEntryDN', 'SynchronizeWithLDAP', 'LDAPElementId'],
+                                 # expand='Type($select=Id,Name)'
+                                 expand='Contact($select=UsrERCLogin)',
+                                 filter='SysAdminUnitTypeValue eq 4'
+                                 )
+
+        return {user['Contact']['UsrERCLogin']: user for user in users}
+
     def get_user_names_set(self):
-        users = self.get_objects('SysAdminUnit', fields=['Name'], expand="LDAPElement($select=Name)")
+        users = self.get_objects('SysAdminUnit', fields=['Name'],
+                                 expand="LDAPElement($select=Name),Contact($select=UsrERCLogin)")
+        # users = self.get_objects('SysAdminUnit', fields=['Name'], expand="LDAPElement($select=Name)")
 
         name_sets = {user['Name'] for user in users}
         login_sets = {user['LDAPElement']['Name'] for user in users}
-        return name_sets, login_sets
+        domain_login_sets = {user['Contact']['UsrERCLogin'] for user in users}
+        return name_sets, login_sets, domain_login_sets
 
         # return {user['LDAPElement']['Name'] if user['LDAPElement']['Name'] else user['Name']:
         #             {'name': user['Name'], 'login': user['LDAPElement']['Name']}
         #         for user in users}
 
     def get_contacts_set(self):
-        users = self.get_objects('Contact', fields=['Id', 'Name', 'UsrERCLogin'])
-        return users
+        contacts = self.get_objects('Contact', fields=['Id', 'Name', 'UsrERCLogin'])
+        return contacts
+
+    def get_users_roles(self):
+        #https://sd.bs.local.erc/0/odata/SysUserInRole?%24expand=SysUser
+        users_roles = self.get_objects('SysUserInRole', fields=['Id', 'SysRoleId', 'SysUserId'],
+                                 expand='SysRole($select=Name),SysUser($select=Name)')
+        return users_roles
+
+    def get_user_roles(self, user_id:str):
+        user_roles = self.get_objects('SysUserInRole', fields=['Id', ],
+                                 expand='SysRole($select=Name)',
+                                filter=f"SysUserId eq {user_id}")
+        if user_roles:
+            return {role['SysRole']['Name'] for role in user_roles}
+        return {}
 
     def update_concat_login(self, contact_id: str, contact_login: str) -> bool:
         print(f'contact contact_id: {contact_id} set ERCLogin = {contact_login}')
         return self.update_object('Contact', contact_id, {
             'UsrERCLogin': contact_login,
         })
+
+    def create_contact(self, contact_name: str, domain_login_name: str, ldap_entry: dict,
+                       use_full_name: bool = False) -> str:
+        contact_dict = {
+            'Name': contact_name,
+            'Email': ldap_entry['Email'],
+            'Phone': ldap_entry['Phone'],
+            'JobTitle': ldap_entry['JobTitle'],
+            # 'FullName': ldap_entry['cn'],
+            'UsrERCLogin': domain_login_name,
+        }
+        if use_full_name:
+            contact_dict['FullName'] = ldap_entry['cn']
+        elif not contact_name:
+            contact_dict['Name'] = ldap_entry['cn']
+
+        contact = self.create_object('Contact', contact_dict)
+        if contact:
+            return contact['Id']
+        return ''
 
     def find_or_create_contact(self, contact_name: str, domain_perfix: str, login_name: str, ldap_entry: dict,
                                create_contact: bool = True) -> str:
@@ -375,6 +445,21 @@ class CreatioAPI(Creatio):
         else:
             return None
 
+    def check_user_have_role(self, role_name:str = 'All employees'):
+        role = self.get_user_roles_by_name(role_name)
+        if role:
+            role_id = role['Id']
+            users = self.get_short_users()
+            for user_name,user in users.items():
+                user_roles = self.get_user_roles(user['Id'])
+                if not role_name in user_roles:
+                    print(f'User {user_name} has no role: {role_name}')
+                    self.create_object('SysUserInRole',{
+                        'SysRoleId': role_id,
+                        'SysUserId': user['Id']
+                    })
+        print(f'Role {role_name} don`t exist')
+
 
 def get_api_connector(config: dict) -> CreatioAPI:
     user_id = config.get("userid")
@@ -382,5 +467,6 @@ def get_api_connector(config: dict) -> CreatioAPI:
     service_url = config.get("service_url", "https://sd.bs.local.erc/")
     ident_service_url = config.get("ident_service_url", "https://ident.sd.bs.local.erc:8093/")
     use_barrier = config.get("use_barrier", False)
+    debug_mode = config.get('debug_mode',False)
 
-    return CreatioAPI(user_id, password, use_barrier, service_url, ident_service_url)
+    return CreatioAPI(user_id, password, use_barrier, service_url, ident_service_url, debug_mode=debug_mode)

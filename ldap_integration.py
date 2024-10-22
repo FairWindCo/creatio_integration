@@ -39,23 +39,64 @@ def save_data_to_json_file(data, file_name):
 
 def print_log(log_entries: list, record: str):
     print(record)
-    log_entries.append(f"{datetime.now().strftime('%d%m%y %H%M%S')}: {record}")
+    log_entries.append(f"{datetime.now().strftime('%d.%m.%y %H:%M:%S')}: {record}")
 
 
-def sync_users(config):
+def sync_ldap_records(config, log_path=''):
     global_user_data = config.get("domain_user", {'login': 'admin', 'password': '<PASSWORD>'})
     debug_mode = config.get("debug_mode", False)
     overwrite_mode = config.get("overwrite_mode", True)
     logs_record = []
     api = get_api_connector(config['api'])
     api.debug = debug_mode
+    if api.login():
+        if debug_mode:
+            print_log(logs_record, f"Login successful ==={datetime.now().strftime('%d%m%y %H%M%S')}===")
+        ldap_entries = api.get_ldap_info()
+        domains = config.get("domains", [])
+        for domain in domains:
+            if domain.get("ignore_domain", False):
+                continue
+            print_log(logs_record, f"process AD domain: {domain['name']}")
+            users = get_ad_domain_users(domain, global_user_data)
+            if debug_mode:
+                print_users(users)
+            domain_preffix = domain.get("name", "")
+            if domain_preffix and not domain_preffix.endswith("\\"):
+                domain_preffix = domain_preffix + "\\"
+            for user in users:
+                ldap_record = convert_ldap_to_ldap_entry_json(domain_preffix, user)
+                account_name = ldap_record['Name']
+                if account_name in ldap_entries:
+                    if overwrite_mode:
+                        api.update_ldap_entry(ldap_entries[account_name]['Id'], ldap_record)
+                        print_log(logs_record, f"AD user: {account_name} - updated")
+                    else:
+                        print_log(logs_record, f"AD user: {account_name} - skipped")
+                else:
+                    new_record = api.create_ldap_entry(ldap_record)
+                    ldap_entries[account_name] = new_record
+                    print_log(logs_record, f"AD user: {account_name} - created")
+    else:
+        print_log(logs_record, "ERROR: Login failed")
+    with open(log_path+"operation.log", "w") as file:
+        for log_record in logs_record:
+            file.write(f"{log_record}\n")
 
+
+def sync_ldap_records_and_contacts(config, log_path=''):
+    global_user_data = config.get("domain_user", {'login': 'admin', 'password': '<PASSWORD>'})
+    debug_mode = config.get("debug_mode", False)
+    overwrite_mode = config.get("overwrite_mode", True)
+    logs_record = []
+    api = get_api_connector(config['api'])
+    api.debug = debug_mode
     if api.login():
         if debug_mode:
             print_log(logs_record, "Login successful")
         ldap_entries = api.get_ldap_info()
         api_users = api.get_short_users()
-        contacts_holder = ContactHolders(api)
+        api_logins = api.get_users_with_domain_login()
         domains = config.get("domains", [])
         for domain in domains:
             if domain.get("ignore_domain", False):
@@ -81,32 +122,22 @@ def sync_users(config):
                     new_record = api.create_ldap_entry(ldap_record)
                     ldap_entries[account_name] = new_record
                     current_ldap_entry_id = new_record['Id']
-
-                if account_name in api_users:
+                domain_login = domain_preffix + ldap_record['LDAPEntryDN']
+                if domain_login in api_logins or account_name in api_users:
                     print_log(logs_record, f'INFO: User {account_name} already exists')
                 else:
-                    # contact_id = api.find_or_create_contact(user['cn'], domain_preffix, account_name, ldap_record,
-                    #                     #                                         can_create_contact)
-                    contact_id = contacts_holder.find_or_create_contact(user['cn'], domain_preffix, account_name,
-                                                                        ldap_record,
-                                                                        can_create_contact)
-
+                    contact_id = api.find_or_create_contact(user['cn'], domain_preffix, account_name, ldap_record,
+                                                             can_create_contact)
                     if contact_id:
                         print_log(logs_record,f'Use ID:{contact_id} for contact: {user["cn"]}')
-                        # user = api.create_user(account_name, current_ldap_entry_id, ldap_record, user["cn"])
-                        # if user:
-                        #     print(f'User {account_name} created {user["Id"]}')
-                        # else:
-                        #     print(f'Error: user {account_name} creation failed')
-
                     else:
-                        print_log(logs_record, "WARNING: contact {user['cn']} - not found")
+                        print_log(logs_record, f"WARNING: contact {user['cn']} - not found")
 
-        save_data_to_json_file(ldap_entries, '/opt/logs/ldap_entries.json')
-        save_data_to_json_file(api_users, '/opt/logs/creatio_users.json')
+        save_data_to_json_file(ldap_entries, log_path+'ldap_entries.json')
+        save_data_to_json_file(api_users, log_path+'creatio_users.json')
     else:
         print_log(logs_record, "ERROR: Login failed")
-    with open("/opt/logs/operation.log", "w") as file:
+    with open(log_path+"operation.log", "w") as file:
         for log_record in logs_record:
             file.write(f"{log_record}\n")
 
@@ -114,4 +145,4 @@ def sync_users(config):
 if __name__ == '__main__':
     with open('import.config') as f:
         config = json.load(f)
-    sync_users(config)
+    sync_ldap_records_and_contacts(config)

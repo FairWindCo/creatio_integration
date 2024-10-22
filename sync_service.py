@@ -7,21 +7,29 @@ from flask import Flask, json
 from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
-from creatio_users import sync_ldap_user_contacts_records
-from ldap_integration import sync_users
+from creatio_users import create_user_from_ldap_and_contacts
+from ldap_integration import sync_ldap_records_and_contacts
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
 scheduler = BackgroundScheduler()
+
+global creatio_api
 
 auth_data = {
     'web_username': 'admin',
     'web_password': 'admin',
 }
 
+if __debug__:
+    logs_path = ''
+else:
+    logs_path = '/opt/logs/'
 
 @auth.verify_password
 def verify_password(username, password):
+    if __debug__:
+        return username
     if username == auth_data['web_username'] and password == auth_data['web_password']:
         return username
     else:
@@ -38,30 +46,31 @@ def index():
 @app.route('/import_logs')
 @auth.login_required
 def import_logs():
-    return read_file('/opt/logs/operation.log')
+    return read_file(logs_path+'operation.log')
 
 
 @app.route('/combine_logs')
 @auth.login_required
 def combine_logs():
-    return read_file('/opt/logs/sync.log')
+    return read_file(logs_path+'sync.log')
 
 
 @app.route('/ldaps')
 @auth.login_required
 def ldaps():
-    return read_file('/opt/logs/ldap_entries.json')
+    return read_file(logs_path+'ldap_entries.json')
 
 
 @app.route('/users')
 @auth.login_required
 def users():
-    return read_file('/opt/logs/creatio_users.json')
+    return read_file(logs_path+'creatio_users.json')
 
 
 @app.route('/get_ldap_entries')
 @auth.login_required
 def get_ldap_entries():
+    global creatio_api
     if creatio_api.login():
         return creatio_api.get_ldap_info()
     else:
@@ -70,6 +79,7 @@ def get_ldap_entries():
 @app.route('/get_creatio_users')
 @auth.login_required
 def get_creatio_users():
+    global creatio_api
     if creatio_api.login():
         return creatio_api.get_short_users()
     else:
@@ -143,14 +153,33 @@ def update_config_secrets(config: dict, base_path: str = '/opt/secrets/', update
             print(f"NO VALUE FOR: {secret}:{update_secret}")
 
 
-creatio_api = None
 update_interval = 24 * 60 * 60
 last_ldap_sync = 0
 last_users_sync = 0
 heartbeat = 0
 
+def users_sync_function(config):
+    global last_users_sync
+    last_users_sync = datetime.now().timestamp()
+    create_user_from_ldap_and_contacts(config, logs_path)
+
+
+
+def ldap_sync_function(config):
+    global last_ldap_sync
+    last_ldap_sync = datetime.now().timestamp()
+    sync_ldap_records_and_contacts(config, logs_path)
+
+
 with app.app_context():
-    config_path = '/opt/config/import.config'
+    global creatio_api
+    global config
+
+    if __debug__:
+        config_path = 'import.config'
+    else:
+        config_path = '/opt/config/import.config'
+    print(f"Use config path: {config_path}")
     if os.path.exists(config_path):
         with open(config_path) as f:
             config = json.load(f)
@@ -161,12 +190,14 @@ with app.app_context():
         'web_username': '',
         'web_password': '',
     })
+    if config.get('debug_mode', False):
+        print(f"Loaded config: {config}")
     if 'api' in config:
         creatio_api = get_api_connector(config['api'])
     update_interval = config.get('update_interval', 60*60*24)
     scheduler.add_job(heartbeat_job, 'interval', seconds=60)
-    scheduler.add_job(sync_users, 'interval', seconds=update_interval, args=[config])
-    scheduler.add_job(sync_ldap_user_contacts_records, 'interval', seconds=update_interval, args=[config])
+    scheduler.add_job(ldap_sync_function, 'interval', seconds=update_interval, args=[config])
+    scheduler.add_job(users_sync_function, 'interval', seconds=update_interval, args=[config])
     scheduler.start()
 
 

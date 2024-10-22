@@ -9,3 +9,4 @@ creatio/connect_test.py
 ldap_test.py
 .git/
 *.json
+*.log

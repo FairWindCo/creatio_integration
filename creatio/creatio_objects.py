@@ -1,17 +1,19 @@
 from creatio.creatio_api import CreatioAPI
 
 
+
 class ContactHolders:
     def __init__(self, api: CreatioAPI, use_cache=True, fields=None):
         if use_cache:
-            by_name, by_login, by_full_name = api.get_short_contacts_dicts()
+            #by_name, by_login, by_full_name = api.get_short_contacts_dicts()
+            by_name, by_login = api.get_short_contacts_dicts()
             self.by_name = by_name
             self.by_login = by_login
-            self.by_full_name = by_full_name
+            #self.by_full_name = by_full_name
         else:
             self.by_name = {}
             self.by_login = {}
-            self.by_full_name = {}
+            #self.by_full_name = {}
         if fields is not None:
             self.fields = fields
         else:
