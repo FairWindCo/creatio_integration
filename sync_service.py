@@ -201,7 +201,7 @@ with app.app_context():
         else:
             print("no config file! use empty config")
             config = {}
-    update_config_secrets(config, base_path='')
+    update_config_secrets(config)
     update_config_secrets(auth_data, update_secrets={
         'web_username': 'admin',
         'web_password': 'admin',
