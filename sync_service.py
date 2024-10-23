@@ -168,23 +168,26 @@ def ldap_sync_function(config):
 with app.app_context():
 
     config_path = '/opt/config/import.config'
+    print("START SERVICE")
+    print(f'check config path: {config_path}')
     if os.path.exists(config_path):
         print(f"Use config path: {config_path}")
         with open(config_path) as f:
             config = json.load(f)
     else:
         config_path = 'import.config'
+        print(f'check config path: {config_path}')
         if os.path.exists(config_path):
             print(f"Use config path: {config_path}")
             with open(config_path) as f:
                 config = json.load(f)
         else:
-
+            print("no config file! use empty config")
             config = {}
     update_config_secrets(config)
     update_config_secrets(auth_data, update_secrets={
-        'web_username': '',
-        'web_password': '',
+        'web_username': 'admin',
+        'web_password': 'admin',
     })
     if config.get('debug_mode', False):
         print(f"Loaded config: {config}")
