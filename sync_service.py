@@ -21,14 +21,13 @@ auth_data = {
     'web_password': 'admin',
 }
 
-if __debug__:
-    logs_path = ''
-else:
-    logs_path = '/opt/logs/'
+
+logs_path = '/opt/logs/'
+
 
 @auth.verify_password
 def verify_password(username, password):
-    if __debug__:
+    if config.get('debug_mode', False):
         return username
     if username == auth_data['web_username'] and password == auth_data['web_password']:
         return username
@@ -70,7 +69,6 @@ def users():
 @app.route('/get_ldap_entries')
 @auth.login_required
 def get_ldap_entries():
-    global creatio_api
     if creatio_api.login():
         return creatio_api.get_ldap_info()
     else:
@@ -79,7 +77,6 @@ def get_ldap_entries():
 @app.route('/get_creatio_users')
 @auth.login_required
 def get_creatio_users():
-    global creatio_api
     if creatio_api.login():
         return creatio_api.get_short_users()
     else:
@@ -88,9 +85,6 @@ def get_creatio_users():
 
 @app.route('/health')
 def health():
-    global last_users_sync
-    global last_ldap_sync
-    global heartbeat
     current_time =datetime.now().timestamp()
     users_sync = (current_time - last_users_sync) < update_interval
     ldap_sync = (current_time - last_ldap_sync) < update_interval
@@ -172,19 +166,21 @@ def ldap_sync_function(config):
 
 
 with app.app_context():
-    global creatio_api
-    global config
 
-    if __debug__:
-        config_path = 'import.config'
-    else:
-        config_path = '/opt/config/import.config'
-    print(f"Use config path: {config_path}")
+    config_path = '/opt/config/import.config'
     if os.path.exists(config_path):
+        print(f"Use config path: {config_path}")
         with open(config_path) as f:
             config = json.load(f)
     else:
-        config = {}
+        config_path = 'import.config'
+        if os.path.exists(config_path):
+            print(f"Use config path: {config_path}")
+            with open(config_path) as f:
+                config = json.load(f)
+        else:
+
+            config = {}
     update_config_secrets(config)
     update_config_secrets(auth_data, update_secrets={
         'web_username': '',
@@ -192,6 +188,7 @@ with app.app_context():
     })
     if config.get('debug_mode', False):
         print(f"Loaded config: {config}")
+        logs_path = ''
     if 'api' in config:
         creatio_api = get_api_connector(config['api'])
     update_interval = config.get('update_interval', 60*60*24)
