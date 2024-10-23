@@ -74,6 +74,12 @@ def get_ldap_entries():
     else:
         return {"ERROR": 'login creatio api failed!'}
 
+@app.route('/conig')
+@auth.login_required
+def get_config():
+    return json.dumps(config)
+
+
 @app.route('/get_creatio_users')
 @auth.login_required
 def get_creatio_users():
@@ -202,5 +208,6 @@ with app.app_context():
 
 
 if __name__ == '__main__':
+    print("Main app running")
     app.run()
     scheduler.shutdown()
