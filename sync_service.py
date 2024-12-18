@@ -15,6 +15,26 @@ logging.basicConfig(level=logging.INFO, filename="py_log.log",filemode="w",
                     format="%(asctime)s %(levelname)s %(message)s")
 
 
+def setup_logger(name, level=logging.INFO, log_file_path='logging.log',format='%(asctime)s %(levelname)s %(message)s'):
+    handler = logging.FileHandler(log_file_path)
+    handler.setLevel(level)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger_file_handler = logging.FileHandler(log_file_path)
+    logger_file_handler.setLevel(logging.DEBUG)
+    logger_file_handler.setFormatter(logging.Formatter(format))
+    logger.addHandler(logger_file_handler)
+    return logger
+
+logs_path = '/opt/logs/'
+
+user_info_logger = setup_logger('UserInfo', log_file_path=os.path.join(logs_path, 'UserInfo.log'))
+ldap_info_logger = setup_logger('LDAPInfo', log_file_path=os.path.join(logs_path, 'LdapInfo.log'))
+general_user_logger = setup_logger("User", log_file_path=os.path.join(logs_path, 'sync.log'))
+general_ldap_logger = setup_logger("Ldap", log_file_path=os.path.join(logs_path, 'operation.log'))
+general_logger = setup_logger("GENERAL", log_file_path=os.path.join(logs_path, 'general.log'))
+
+
 app = Flask(__name__)
 auth = HTTPBasicAuth()
 scheduler = BackgroundScheduler()
@@ -27,7 +47,7 @@ auth_data = {
 }
 
 
-logs_path = '/opt/logs/'
+
 
 
 @auth.verify_password
@@ -79,7 +99,7 @@ def get_ldap_entries():
     else:
         return {"ERROR": 'login creatio api failed!'}
 
-@app.route('/conig')
+@app.route('/config')
 @auth.login_required
 def get_config():
     return json.dumps(config)
@@ -105,7 +125,9 @@ def health():
             "sync_ldap_entries":"ok" if ldap_sync else "failed",
             "sync_users": "ok" if users_sync else "failed",
             "heartbeat_status": "ok" if heartbeat_status else "failed",
-            "current_time": datetime.now().isoformat()}
+            "current_time": datetime.now().isoformat(),
+            "last_user_sync:": datetime.fromtimestamp(last_users_sync).isoformat(),
+            "last_ldap_sync:": datetime.fromtimestamp(last_ldap_sync).isoformat()}
 
 
 def heartbeat_job():
@@ -131,20 +153,20 @@ def update_config_secrets(config: dict, base_path: str = '/opt/secrets/', update
             'creatio_username': 'api.userid',
             'creatio_password': 'api.password',
         }
-    logging.info("READ SECRETS")
+    general_logger.info("READ SECRETS")
     for secret, update_secret in update_secrets.items():
         if update_secrets:
-            logging.info(f"check path {base_path + secret}")
+            general_logger.info(f"check path {base_path + secret}")
             if path.exists(base_path + secret):
                 with open(base_path + secret, 'r') as f:
                     value = f.read()
-                logging.info(f"read secret: {value}")
+                general_logger.info(f"read secret: {value}")
             else:
                 value = os.environ.get(secret, None)
-                logging.info(f"secret file not found. read env: {value}")
+                general_logger.info(f"secret file not found. read env: {value}")
         else:
             update_secrets = secret
-        logging.info(f"update config")
+        general_logger.info(f"update config")
         if value is not None:
             items = update_secret.split('.')
             update_path = items[:-1]
@@ -158,11 +180,11 @@ def update_config_secrets(config: dict, base_path: str = '/opt/secrets/', update
                 if update_key in part_config_for_update:
                     part_config_for_update[update_key] = value
                 else:
-                    logging.warning(f"NO CONFIG KEY {update_key}")
+                    general_logger.warning(f"NO CONFIG KEY {update_key}")
             else:
-                logging.warning(f"incorrect {update_secret} path")
+                general_logger.warning(f"incorrect {update_secret} path")
         else:
-            logging.warning(f"NO VALUE FOR: {secret}:{update_secret}")
+            general_logger.warning(f"NO VALUE FOR: {secret}:{update_secret}")
 
 
 update_interval = 24 * 60 * 60
@@ -206,19 +228,28 @@ with app.app_context():
         'web_username': 'admin',
         'web_password': 'admin',
     })
+
+    general_logger.debug("config: " + str(config))
+    general_logger.debug("auth_data: " + str(auth_data))
+
     if config.get('debug_mode', False):
-        print(f"Loaded config: {config}")
+        general_logger.setLevel(logging.DEBUG)
+        general_ldap_logger.setLevel(logging.DEBUG)
+        general_user_logger.setLevel(logging.DEBUG)
         logs_path = ''
     if 'api' in config:
         creatio_api = get_api_connector(config['api'])
     update_interval = config.get('update_interval', 60*60*24)
+    general_logger.info("update interval: " + str(update_interval))
+    general_logger.info("setup process jobs")
     scheduler.add_job(heartbeat_job, 'interval', seconds=60)
     scheduler.add_job(ldap_sync_function, 'interval', seconds=update_interval, args=[config])
     scheduler.add_job(users_sync_function, 'interval', seconds=update_interval, args=[config])
     scheduler.start()
+    general_logger.info("scheduler started")
 
 
 if __name__ == '__main__':
     print("Main app running")
-    app.run()
+    app.run(host="0.0.0.0", port=5000)
     scheduler.shutdown()

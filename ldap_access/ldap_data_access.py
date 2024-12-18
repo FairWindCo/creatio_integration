@@ -108,13 +108,75 @@ def get_ldap_entry_id(user):
 
 
 def form_user_data(user, attribute_list):
-    user_data = {
-        name: convert_attribute(user, name) for name in attribute_list
-    }
-    user_data['DN'] = user[0]
-    user_data['ldap_entry_id'] = get_ldap_entry_id(user)
-    return user_data
+    if isinstance(user[1], dict):
+        user_data = {
+            name: convert_attribute(user, name) for name in attribute_list
+        }
+        user_data['DN'] = user[0]
+        user_data['ldap_entry_id'] = get_ldap_entry_id(user)
+        return user_data
+    else:
+        return {}
 
+
+def get_groups(ldap_client, base_dn='DC=bs,DC=local,DC=erc', filterexp=None, attrlist=None):
+    # filterexp = "(&(objectClass=user)(objectClass=person)(!(objectClass=computer))(!(isDeleted=TRUE)))"
+    if filterexp is None:
+        filterexp = "(&(objectClass=group)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(objectcategory=group)(cn=*))"
+    if attrlist is None:
+        attrlist = ["sAMAccountName", "objectSid", "cn",  'modifyTimeStamp']
+    result = [form_user_data(entry, attrlist) for entry in ldap_client.search_s(base_dn, ldap.SCOPE_SUBTREE, filterexp, attrlist)
+            if entry[0]]
+    print(f'found records: {len(result)}')
+    return result
+
+def get_group(ldap_client, base_dn, group_name):
+    return get_groups(ldap_client, base_dn, filterexp=f"(sAMAccountName={group_name})")[0]
+
+def get_user(ldap_client, base_dn, user_name):
+    users = get_users(ldap_client, base_dn, filterexp=f"(sAMAccountName={user_name})")
+    return users[0]
+
+def add_user_to_group(ldap_client, base_dn, user_name, group_name):
+    group = get_group(ldap_client, base_dn, group_name)
+    if group:
+        user = get_user(ldap_client, base_dn, user_name)
+        if user:
+            result = ldap_client.modify_s(group['DN'], [
+                (ldap.MOD_ADD, 'member', [user['DN'].encode()]),
+            ])
+            if result and isinstance(result, (list, tuple)):
+                return True
+    return False
+
+def group_members(ldap_client, base_dn, group_name):
+    group = get_group(ldap_client, base_dn, group_name)
+    if group:
+        print(group['DN'])
+        dn = 'DC=local,DC=erc'
+        users = get_users(ldap_client, dn, f"(&(objectClass=user)(MemberOf={group['DN']}))",
+                          ["sAMAccountName", "objectSid", "cn"])
+        return users
+    return []
+
+def group_members_ex(ldap_client, group):
+    dn = 'DC=local,DC=erc'
+    users = get_users(ldap_client, dn, f"(&(objectClass=user)(MemberOf={group}))",
+                      ["sAMAccountName", "objectSid", "cn"])
+    return users
+
+
+def del_user_from_group(ldap_client, base_dn, user_name, group_name):
+    group = get_group(ldap_client, base_dn, group_name)
+    if group:
+        user = get_user(ldap_client, base_dn, user_name)
+        if user:
+            result = ldap_client.modify_s(group['DN'], [
+                (ldap.MOD_DELETE, 'member', [user['DN'].encode()]),
+            ])
+            if result and isinstance(result, (list, tuple)):
+                return True
+    return False
 
 def get_users(ldap_client, base_dn='DC=bs,DC=local,DC=erc', filterexp=None, attrlist=None):
     # filterexp = "(&(objectClass=user)(objectClass=person)(!(objectClass=computer))(!(isDeleted=TRUE)))"
@@ -123,8 +185,8 @@ def get_users(ldap_client, base_dn='DC=bs,DC=local,DC=erc', filterexp=None, attr
     if attrlist is None:
         attrlist = ["sAMAccountName", "mail", "objectSid", "cn", "telephoneNumber", "title", "company", "uid",
                     'modifyTimeStamp', "IsAccountLocked"]
+    print(f'filter {filterexp} users')
     result = ldap_client.search_s(base_dn, ldap.SCOPE_SUBTREE, filterexp, attrlist)
-    print(f'found records: {len(result)}')
     user_for_next_processing = []
 
     for user in result:
@@ -135,7 +197,25 @@ def get_users(ldap_client, base_dn='DC=bs,DC=local,DC=erc', filterexp=None, attr
             user_for_next_processing.append(
                 form_user_data(user, attrlist)
             )
+    print(f'found records: {len(user_for_next_processing)}')
     return user_for_next_processing
+
+
+
+def ldap_client_operation(operation, login, password, server, *args, **kwargs):
+    try:
+        if not server.startswith("ldap://"):
+            server = "ldap://" + server
+        ldap_client = ldap.initialize(server)
+        ldap_client.set_option(ldap.OPT_REFERRALS, 0)
+        ldap_client.bind_s(login, password, ldap.AUTH_SIMPLE)
+
+        result = operation(ldap_client, *args, **kwargs)
+        ldap_client.unbind_s()
+        return result
+    except Exception as e:
+        print(e)
+        return None
 
 
 def get_users_from_ldap(login, password, server='ldap://dcbs0201.bs.local.erc',
@@ -167,3 +247,41 @@ def get_ad_domain_users(domain_config, user_data, filter=None):
     login = domain_config.get('login', user_data.get('login', ''))
     password = domain_config.get('password', user_data.get('password', ''))
     return get_users_from_ldap(login, password, server=server_addr, basedn=dn, filterexp=filter)
+
+def get_ad_domain_groups(domain_config, user_data, filter=None):
+    server_addr = domain_config['ldap_server']
+    dn = domain_config['dn']
+    login = domain_config.get('login', user_data.get('login', ''))
+    password = domain_config.get('password', user_data.get('password', ''))
+    result = ldap_client_operation(get_groups, login, password, server_addr, dn, filter)
+    return result
+
+def add_ad_domain_user_to_group(domain_config, user_data, group_name, user_name):
+    server_addr = domain_config['ldap_server']
+    dn = domain_config['dn']
+    login = domain_config.get('login', user_data.get('login', ''))
+    password = domain_config.get('password', user_data.get('password', ''))
+    return ldap_client_operation(add_user_to_group, login, password, server_addr, dn, user_name, group_name)
+
+def remove_ad_domain_user_from_group(domain_config, user_data, group_name, user_name):
+    server_addr = domain_config['ldap_server']
+    dn = domain_config['dn']
+    login = domain_config.get('login', user_data.get('login', ''))
+    password = domain_config.get('password', user_data.get('password', ''))
+    return ldap_client_operation(del_user_from_group, login, password, server_addr, dn, user_name, group_name)
+
+
+def ad_group_members(domain_config, user_data, group_name):
+    server_addr = domain_config['ldap_server']
+    dn = domain_config['dn']
+    login = domain_config.get('login', user_data.get('login', ''))
+    password = domain_config.get('password', user_data.get('password', ''))
+    return ldap_client_operation(group_members, login, password, server_addr, dn, group_name)
+
+def ad_group_members_dn(domain_config, user_data, group_dn):
+    server_addr = domain_config['ldap_server']
+    dn = domain_config['dn']
+    login = domain_config.get('login', user_data.get('login', ''))
+    password = domain_config.get('password', user_data.get('password', ''))
+    return ldap_client_operation(group_members_ex, login, password, server_addr, "CN=Erc_web_users,OU=W,OU=DFS,DC=bs,DC=local,DC=erc")
+
