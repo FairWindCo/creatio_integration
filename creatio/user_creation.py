@@ -45,10 +45,13 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
         logger.debug(sql)
         try:
             cursor.execute(sql)
+            cursor.execute('SELECT @@Identity')
+            cursor.commit()
+            return cursor.fetchone()[0]
         except Exception as e:
-            logger.debug(sql)
             logger.error(e)
-        cursor.commit()
+            cursor.rollback()
+
 
 
 def insert_user_role_record(cursor, user_id, role_id,
@@ -82,7 +85,10 @@ def combine_role(cursor, creatio_api,role_name:str = 'All employees',
                 # if not role_name in user_roles:
                 #     print(f'User {user_name} has no role: {role_name}')
                 insert_user_role_record(cursor, user['Id'], role_id, creator_id)
-        print(f'Role {role_name} don`t exist')
+                return True
+        else:
+            print(f'Role {role_name} don`t exist')
+            return False
 
 
 def combine_users_records(cursor, creatio_api,

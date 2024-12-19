@@ -86,15 +86,13 @@ def sync_ldap_records(config, logger, success_logger,):
 def sync_ldap_records_and_contacts(config, logger, success_logger, log_path=''):
     global_user_data = config.get("domain_user", {'login': 'admin', 'password': '<PASSWORD>'})
     debug_mode = config.get("debug_mode", False)
-    overwrite_mode = config.get("overwrite_mode", True)
+    overwrite_mode = config.get("overwrite_mode", False)
     logger.debug("START LDAP AND CONTACT SYNC PROCESS")
     api = get_api_connector(config['api'])
     api.debug = debug_mode
     if api.login():
         logger.debug("Login successful")
         ldap_entries = api.get_ldap_info()
-        api_users = api.get_short_users()
-        api_logins = api.get_users_with_domain_login()
         domains = config.get("domains", [])
         for domain in domains:
             if domain.get("ignore_domain", False):
@@ -115,28 +113,22 @@ def sync_ldap_records_and_contacts(config, logger, success_logger, log_path=''):
 
                 if account_name in ldap_entries:
                     if overwrite_mode:
-                        api.update_ldap_entry(ldap_entries[account_name]['Id'], ldap_record)
-                        current_ldap_entry_id = ldap_entries[account_name]['Id']
-                        success_logger.info(f"LDAP record: {account_name} - updated {current_ldap_entry_id}")
+                        res = api.update_ldap_entry(ldap_entries[account_name]['Id'], ldap_record)
+                        if res:
+                            current_ldap_entry_id = ldap_entries[account_name]['Id']
+                            success_logger.info(f"LDAP record: {account_name} - updated {current_ldap_entry_id}")
+                        else:
+                            success_logger.info(f"LDAP record: {account_name} - UPDATE FAILED {current_ldap_entry_id}")
+                    else:
+                        logger.debug(f"LDAP record: {account_name} - skipped")
                 else:
                     new_record = api.create_ldap_entry(ldap_record)
                     ldap_entries[account_name] = new_record
                     current_ldap_entry_id = new_record['Id']
                     success_logger.info(f"LDAP record: {account_name} - created as {current_ldap_entry_id}")
-                domain_login = domain_preffix + ldap_record['LDAPEntryDN']
-                logger.debug(f"process Domain login: {domain_login}")
-                if domain_login in api_logins or account_name in api_users:
-                    logger.debug(f'INFO: User {account_name} already exists')
-                else:
-                    contact_id = api.find_or_create_contact(user['cn'], domain_preffix, account_name, ldap_record,
-                                                             can_create_contact)
-                    if contact_id:
-                        logger.info(f'Use ID:{contact_id} for contact: {user["cn"]}')
-                    else:
-                        logger.info(f"WARNING: contact {user['cn']} - not found")
+
 
         save_data_to_json_file(ldap_entries, log_path+'ldap_entries.json')
-        save_data_to_json_file(api_users, log_path+'creatio_users.json')
     else:
         logger.error("ERROR: Login failed")
 

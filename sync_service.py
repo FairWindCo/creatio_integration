@@ -26,7 +26,8 @@ def setup_logger(name, level=logging.INFO, log_file_path='logging.log',format='%
     logger.addHandler(logger_file_handler)
     return logger
 
-logs_path = '/opt/logs/'
+#logs_path = '/opt/logs/'
+logs_path = ''
 
 user_info_logger = setup_logger('UserInfo', log_file_path=os.path.join(logs_path, 'UserInfo.log'))
 ldap_info_logger = setup_logger('LDAPInfo', log_file_path=os.path.join(logs_path, 'LdapInfo.log'))
@@ -195,7 +196,7 @@ heartbeat = 0
 def users_sync_function(config):
     global last_users_sync
     try:
-        create_user_from_ldap_and_contacts(config, user_info_logger, success_user_logger)
+        create_user_from_ldap_and_contacts(config, user_info_logger, success_user_logger, logs_path)
         last_users_sync = datetime.now().timestamp()
     except Exception as e:
         user_info_logger.error(e)
@@ -253,6 +254,7 @@ with app.app_context():
     update_interval = config.get('update_interval', 60*60*24)
     general_logger.info("update interval: " + str(update_interval))
     general_logger.info("setup process jobs")
+    users_sync_function(config)
     scheduler.add_job(heartbeat_job, 'interval', seconds=60)
     scheduler.add_job(ldap_sync_function, 'interval',
                       next_run_time=datetime.now(),

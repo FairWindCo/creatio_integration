@@ -347,6 +347,11 @@ class CreatioAPI(Creatio):
         contacts = self.get_objects('Contact', fields=['Id', 'Name', 'UsrERCLogin'])
         return contacts
 
+    def get_contacts_set_id(self):
+        contacts = self.get_objects('Contact', fields=['Id', 'Name', 'UsrERCLogin'])
+        return {contact['UsrERCLogin']:contact['Id'] for contact in contacts}
+
+
     def get_users_roles(self):
         #https://sd.bs.local.erc/0/odata/SysUserInRole?%24expand=SysUser
         users_roles = self.get_objects('SysUserInRole', fields=['Id', 'SysRoleId', 'SysUserId'],
