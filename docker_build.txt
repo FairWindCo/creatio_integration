@@ -1,0 +1,2 @@
+docker build . --no-cache -t fairwind81/ldap-sync:v3
+docker push fairwind81/ldap-sync:v3

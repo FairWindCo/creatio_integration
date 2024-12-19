@@ -82,13 +82,13 @@ def combine_logs():
 @app.route('/ldaps')
 @auth.login_required
 def ldaps():
-    return read_file(logs_path+'ldap_entries.json')
+    return read_file(os.path.join(logs_path,'ldap_entries.json'))
 
 
 @app.route('/users')
 @auth.login_required
 def users():
-    return read_file(logs_path+'creatio_users.json')
+    return read_file(os.path.join(logs_path,'creatio_users.json'))
 
 
 @app.route('/get_ldap_entries')
@@ -236,15 +236,19 @@ with app.app_context():
         general_logger.setLevel(logging.DEBUG)
         general_ldap_logger.setLevel(logging.DEBUG)
         general_user_logger.setLevel(logging.DEBUG)
-        logs_path = ''
+        #logs_path = ''
     if 'api' in config:
         creatio_api = get_api_connector(config['api'])
     update_interval = config.get('update_interval', 60*60*24)
     general_logger.info("update interval: " + str(update_interval))
     general_logger.info("setup process jobs")
     scheduler.add_job(heartbeat_job, 'interval', seconds=60)
-    scheduler.add_job(ldap_sync_function, 'interval', seconds=update_interval, args=[config])
-    scheduler.add_job(users_sync_function, 'interval', seconds=update_interval, args=[config])
+    scheduler.add_job(ldap_sync_function, 'interval',
+                      next_run_time=datetime.now(),
+                      seconds=update_interval, args=[config])
+    scheduler.add_job(users_sync_function, 'interval',
+                      next_run_time=datetime.now(),
+                      seconds=update_interval, args=[config])
     scheduler.start()
     general_logger.info("scheduler started")
 
