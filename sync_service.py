@@ -26,8 +26,8 @@ def setup_logger(name, level=logging.INFO, log_file_path='logging.log',format='%
     logger.addHandler(logger_file_handler)
     return logger
 
-#logs_path = '/opt/logs/'
-logs_path = ''
+logs_path = '/opt/logs/'
+
 
 user_info_logger = setup_logger('UserInfo', log_file_path=os.path.join(logs_path, 'UserInfo.log'))
 ldap_info_logger = setup_logger('LDAPInfo', log_file_path=os.path.join(logs_path, 'LdapInfo.log'))
@@ -254,7 +254,7 @@ with app.app_context():
     update_interval = config.get('update_interval', 60*60*24)
     general_logger.info("update interval: " + str(update_interval))
     general_logger.info("setup process jobs")
-    users_sync_function(config)
+    # users_sync_function(config)
     scheduler.add_job(heartbeat_job, 'interval', seconds=60)
     scheduler.add_job(ldap_sync_function, 'interval',
                       next_run_time=datetime.now(),
