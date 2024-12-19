@@ -30,8 +30,8 @@ logs_path = '/opt/logs/'
 
 user_info_logger = setup_logger('UserInfo', log_file_path=os.path.join(logs_path, 'UserInfo.log'))
 ldap_info_logger = setup_logger('LDAPInfo', log_file_path=os.path.join(logs_path, 'LdapInfo.log'))
-general_user_logger = setup_logger("User", log_file_path=os.path.join(logs_path, 'sync.log'))
-general_ldap_logger = setup_logger("Ldap", log_file_path=os.path.join(logs_path, 'operation.log'))
+success_user_logger = setup_logger("User", log_file_path=os.path.join(logs_path, 'sync.log'))
+success_ldap_logger = setup_logger("Ldap", log_file_path=os.path.join(logs_path, 'operation.log'))
 general_logger = setup_logger("GENERAL", log_file_path=os.path.join(logs_path, 'general.log'))
 
 
@@ -194,15 +194,26 @@ heartbeat = 0
 
 def users_sync_function(config):
     global last_users_sync
-    last_users_sync = datetime.now().timestamp()
-    create_user_from_ldap_and_contacts(config, logs_path)
+    try:
+        create_user_from_ldap_and_contacts(config, user_info_logger, success_user_logger)
+        last_users_sync = datetime.now().timestamp()
+    except Exception as e:
+        user_info_logger.error(e)
+
+
 
 
 
 def ldap_sync_function(config):
     global last_ldap_sync
-    last_ldap_sync = datetime.now().timestamp()
-    sync_ldap_records_and_contacts(config, logs_path)
+    try:
+
+        sync_ldap_records_and_contacts(config, ldap_info_logger, success_ldap_logger, logs_path)
+        last_ldap_sync = datetime.now().timestamp()
+    except Exception as e:
+        ldap_info_logger.error(e)
+
+
 
 
 with app.app_context():
@@ -234,8 +245,8 @@ with app.app_context():
 
     if config.get('debug_mode', False):
         general_logger.setLevel(logging.DEBUG)
-        general_ldap_logger.setLevel(logging.DEBUG)
-        general_user_logger.setLevel(logging.DEBUG)
+        success_ldap_logger.setLevel(logging.DEBUG)
+        success_user_logger.setLevel(logging.DEBUG)
         #logs_path = ''
     if 'api' in config:
         creatio_api = get_api_connector(config['api'])

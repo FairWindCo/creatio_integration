@@ -12,9 +12,12 @@ RUN apk add build-base openldap-dev python3-dev git curl gnupg ;  \
     apk add --allow-untrusted msodbcsql18_18.4.1.1-1_amd64.apk ; \
     apk add  unixodbc-dev
 
-RUN git clone https://github.com/FairWindCo/creatio_integration
+RUN mkdir /creatio_integration
 WORKDIR /creatio_integration
+COPY requirements.txt /creatio_integration/requirements.txt
 RUN pip3 install --upgrade pip -r requirements.txt ; pip3 install gunicorn
+
+RUN git clone https://github.com/FairWindCo/creatio_integration
 # |ВАЖНЫЙ МОМЕНТ| копируем содержимое папки, где находится Dockerfile,
 # в рабочую директорию контейнера
 # Устанавливаем порт, который будет использоваться для сервера
