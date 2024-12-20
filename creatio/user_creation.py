@@ -45,9 +45,11 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
         logger.debug(sql)
         try:
             cursor.execute(sql)
-            cursor.execute('SELECT @@Identity')
+            recordid = cursor.fetchone()[0]
+            #cursor.execute('SELECT @@Identity AS ID')
+            logger.debug(f'Record SysAdminUnit({name}) with record ID {recordid} created.')
             cursor.commit()
-            return cursor.fetchone()[0]
+            return recordid
         except Exception as e:
             logger.error(e)
             cursor.rollback()
@@ -85,7 +87,7 @@ def combine_role(cursor, creatio_api,role_name:str = 'All employees',
                 # if not role_name in user_roles:
                 #     print(f'User {user_name} has no role: {role_name}')
                 insert_user_role_record(cursor, user['Id'], role_id, creator_id)
-                return True
+            return True
         else:
             print(f'Role {role_name} don`t exist')
             return False
