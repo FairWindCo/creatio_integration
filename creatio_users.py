@@ -22,7 +22,8 @@ def create_user_from_ldap_and_contacts(config, logger, succes_logger, log_path='
 
     if cursor is not None:
         creator_name = config.get("creator_name", "Supervisor")
-        default_role = config.get("default_role_name", "All employees")
+        #default_role = config.get("default_role_name", "All employees")
+        default_role = config.get("default_role_name", "All external users")
         created_user_id = get_contact_id(cursor, creator_name)
 
         api = get_api_connector(config['api'])
