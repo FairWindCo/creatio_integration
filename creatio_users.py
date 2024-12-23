@@ -3,7 +3,8 @@ from ssl import create_default_context
 
 from creatio.creatio_api import get_api_connector
 from creatio.db import get_db_connection, get_contact_id
-from creatio.user_creation import combine_users_records, combine_role, insert_user_record_with_log
+from creatio.user_creation import combine_users_records, combine_role, insert_user_record_with_log, \
+    insert_user_role_record
 from ldap_integration import save_data_to_json_file
 
 
@@ -30,6 +31,12 @@ def create_user_from_ldap_and_contacts(config, logger, succes_logger, log_path='
         if created_user_id:
             if api.login():
                 logger.debug("Login successful")
+                role = api.get_user_roles_by_name(default_role)
+                if role:
+                    role_id = role['Id']
+                else:
+                    logger.error(f'Role {default_role} not found')
+                    role_id = None
                 ldap_entries = api.get_ldap_info()
                 api_users = api.get_short_users()
                 api_logins = api.get_users_with_domain_login()
@@ -50,12 +57,17 @@ def create_user_from_ldap_and_contacts(config, logger, succes_logger, log_path='
                                                         ldap_entry, created_user_id)
                             if userid:
                                 succes_logger.info(f'INFO: User {domain_login} created')
+                                if role_id:
+                                    if insert_user_role_record(cursor, userid, role_id, created_user_id):
+                                        succes_logger.info(f'Add {default_role} to user {domain_login}')
+                                    else:
+                                        logger.error(f'Role {default_role} not added to User {domain_login}')
                             else:
                                 logger.error(f'INFO: User {domain_login} not created')
                         else:
                             logger.warning(f'INFO: Contact for {domain_login} does not exist')
                     #api.check_user_have_role(role_name=default_role)
-                combine_role(cursor, api,creator_id=created_user_id,role_name=default_role)
+                #combine_role(cursor, api,creator_id=created_user_id,role_name=default_role)
             else:
                 logger.error('Creatio API login failed')
         else:

@@ -68,10 +68,13 @@ def insert_user_role_record(cursor, user_id, role_id,
             print(sql)
         try:
             cursor.execute(sql)
+            cursor.commit()
+            return True
         except Exception as e:
             print(sql)
             print(e)
-        cursor.commit()
+            return False
+
 
 
 
@@ -83,10 +86,10 @@ def combine_role(cursor, creatio_api,role_name:str = 'All employees',
             role_id = role['Id']
             users = creatio_api.get_short_users()
             for user_name,user in users.items():
-                # user_roles = creatio_api.get_user_roles(user['Id'])
-                # if not role_name in user_roles:
+                user_roles = creatio_api.get_user_roles(user['Id'])
+                if not role_name in user_roles:
                 #     print(f'User {user_name} has no role: {role_name}')
-                insert_user_role_record(cursor, user['Id'], role_id, creator_id)
+                    insert_user_role_record(cursor, user['Id'], role_id, creator_id)
             return True
         else:
             print(f'Role {role_name} don`t exist')

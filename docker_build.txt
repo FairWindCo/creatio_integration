@@ -1,2 +1,12 @@
 docker build . --no-cache -t fairwind81/ldap-sync:v3
 docker push fairwind81/ldap-sync:v3
+
+
+ docker build . --cache-from=42f463f05cab  -t fairwind81/ldap-sync:v8
+
+Prune unused Docker objects
+docker image prune
+docker image prune -a
+
+Prune container images with just containerd (w/o Docker)
+crictl rmi --prune
