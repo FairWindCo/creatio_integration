@@ -36,23 +36,32 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
         ldap_dn = ldap_record['LDAPEntryDN']
         ldap_entry_code = ldap_record['LDAPEntryId']
         sql = (
+            f'DECLARE @InsertedIds TABLE (Id UNIQUEIDENTIFIER); '
             f'INSERT INTO  dbo.SysAdminUnit(name, ContactId, LDAPEntryId, LDAPEntry,LDAPElementId,'
             f'LDAPEntryDN, SysAdminUnitTypeValue, Active,'
             f'SynchronizeWithLDAP,CreatedById, ModifiedById,IsDirectoryEntry,SysCultureId,ConnectionType) '
+            f'OUTPUT INSERTED.Id INTO @InsertedIds'
             f" VALUES('{name}','{contact_id}','{ldap_entry_code}','{ldap_name}','{ldap_id}','{ldap_dn}', "
             f" 4,1, 1,'{creator_id}','{creator_id}',0, '{sysculture_id}', 0);"
-            f" SELECT SCOPE_IDENTITY();")
+            f" SELECT Id FROM @InsertedIds;")
         logger.info(f'Inserting SysAdminUnit record {name}')
         logger.debug(sql)
         try:
             cursor.execute(sql)
-            # перейти до результату SELECT
-            while cursor.nextset():
+            while True:
                 if cursor.description:
                     break
-
-            recordid = cursor.fetchone()[0]
+                if not cursor.nextset():
+                    raise Exception("No result set returned from SQL")
+            
+            # Тепер можна отримати дані
+            row = cursor.fetchone()
+            if row is None:
+                raise Exception("SELECT from @InsertedIds returned no rows")
+            
+            recordid = row[0]
             #cursor.execute('SELECT @@Identity AS ID')
+            print(f'Record SysAdminUnit({name}) with record ID {recordid} created.')
             logger.debug(f'Record SysAdminUnit({name}) with record ID {recordid} created.')
             cursor.commit()
             return recordid

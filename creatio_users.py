@@ -81,4 +81,4 @@ if __name__ == '__main__':
         config = json.load(f)
     logger = logging.getLogger()
     create_user_from_ldap_and_contacts(config, logger, logger, log_path='')
-    save_data_to_json_file(config)
+    #save_data_to_json_file(config)
