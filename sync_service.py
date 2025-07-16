@@ -216,8 +216,9 @@ def ldap_sync_function(config):
 
 
 
-
-with app.app_context():
+def init_app():
+    global config, creatio_api, update_interval
+    
     config_path = '/opt/config/import.config'
     print("START SERVICE")
     print(f'check config path: {config_path}')
@@ -268,5 +269,9 @@ with app.app_context():
 
 if __name__ == '__main__':
     print("Main app running")
+    with app.app_context():
+        init_app()
     app.run(host="0.0.0.0", port=5000)
     scheduler.shutdown()
+else:
+    init_app()
