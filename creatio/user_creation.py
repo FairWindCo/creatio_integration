@@ -40,11 +40,17 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
             f'LDAPEntryDN, SysAdminUnitTypeValue, Active,'
             f'SynchronizeWithLDAP,CreatedById, ModifiedById,IsDirectoryEntry,SysCultureId,ConnectionType) '
             f" VALUES('{name}','{contact_id}','{ldap_entry_code}','{ldap_name}','{ldap_id}','{ldap_dn}', "
-            f" 4,1, 1,'{creator_id}','{creator_id}',0, '{sysculture_id}', 0)")
+            f" 4,1, 1,'{creator_id}','{creator_id}',0, '{sysculture_id}', 0);"
+            f" SELECT SCOPE_IDENTITY();")
         logger.info(f'Inserting SysAdminUnit record {name}')
         logger.debug(sql)
         try:
             cursor.execute(sql)
+            # перейти до результату SELECT
+            while cursor.nextset():
+                if cursor.description:
+                    break
+
             recordid = cursor.fetchone()[0]
             #cursor.execute('SELECT @@Identity AS ID')
             logger.debug(f'Record SysAdminUnit({name}) with record ID {recordid} created.')
@@ -52,6 +58,7 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
             return recordid
         except Exception as e:
             logger.error(e)
+            logger.error(sql)
             cursor.rollback()
 
 

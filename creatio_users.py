@@ -1,4 +1,5 @@
 import json
+import logging
 from ssl import create_default_context
 
 from creatio.creatio_api import get_api_connector
@@ -64,9 +65,9 @@ def create_user_from_ldap_and_contacts(config, logger, succes_logger, log_path='
                                     else:
                                         logger.error(f'Role {default_role} not added to User {domain_login}')
                             else:
-                                logger.error(f'INFO: User {domain_login} not created')
+                                logger.error(f'User {domain_login} not created')
                         else:
-                            logger.warning(f'INFO: Contact for {domain_login} does not exist')
+                            logger.warning(f'Contact for {domain_login} does not exist')
                     #api.check_user_have_role(role_name=default_role)
                 #combine_role(cursor, api,creator_id=created_user_id,role_name=default_role)
             else:
@@ -78,4 +79,6 @@ def create_user_from_ldap_and_contacts(config, logger, succes_logger, log_path='
 if __name__ == '__main__':
     with open('import.config') as f:
         config = json.load(f)
+    logger = logging.getLogger()
+    create_user_from_ldap_and_contacts(config, logger, logger, log_path='')
     save_data_to_json_file(config)
