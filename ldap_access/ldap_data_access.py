@@ -8,8 +8,8 @@ import ldap
 
 def filter_account(account_name):
     account_name = account_name.lower()
-    # if account_name == b'dev_creatio':
-    #     return False
+    if account_name == b'dev_creatio':
+        return False
     if account_name == b'administrator':
         return True
     if account_name.endswith(b'$'):
@@ -202,13 +202,16 @@ def get_users(ldap_client, base_dn='DC=bs,DC=local,DC=erc', filterexp=None, attr
 
 
 
-def ldap_client_operation(operation, login, password, server, *args, **kwargs):
+def ldap_client_operation(operation, login, password, server, auto_login=False, *args, **kwargs):
     try:
         if not server.startswith("ldap://"):
             server = "ldap://" + server
         ldap_client = ldap.initialize(server)
         ldap_client.set_option(ldap.OPT_REFERRALS, 0)
-        ldap_client.bind_s(login, password, ldap.AUTH_SIMPLE)
+        if auto_login:
+            ldap_client.sasl_gssapi_bind_s()
+        else:
+            ldap_client.bind_s(login, password, ldap.AUTH_SIMPLE)
 
         result = operation(ldap_client, *args, **kwargs)
         ldap_client.unbind_s()

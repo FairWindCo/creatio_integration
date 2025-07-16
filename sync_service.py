@@ -9,7 +9,7 @@ from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
 from creatio_users import create_user_from_ldap_and_contacts
-from ldap_integration import sync_ldap_records_and_contacts
+from ldap_integration import sync_ldap_records_and_contacts, sync_ldap_records
 
 logging.basicConfig(level=logging.INFO, filename="py_log.log",filemode="w",
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -209,7 +209,7 @@ def ldap_sync_function(config):
     global last_ldap_sync
     try:
 
-        sync_ldap_records_and_contacts(config, ldap_info_logger, success_ldap_logger, logs_path)
+        sync_ldap_records(config, ldap_info_logger, success_ldap_logger, logs_path)
         last_ldap_sync = datetime.now().timestamp()
     except Exception as e:
         ldap_info_logger.error(e)

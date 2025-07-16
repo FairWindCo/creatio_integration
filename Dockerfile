@@ -13,14 +13,16 @@ RUN apk add build-base openldap-dev python3-dev git curl gnupg ;  \
     apk add  unixodbc-dev
 
 RUN mkdir /creatio_integration
-WORKDIR /creatio_integration
 COPY requirements.txt /creatio_integration/requirements.txt
-RUN pip3 install --upgrade pip -r requirements.txt ; pip3 install gunicorn
+RUN cd /creatio_integration; \
+    pip3 install --upgrade pip -r requirements.txt; \
+    pip3 install gunicorn
 
 RUN git clone https://github.com/FairWindCo/creatio_integration
 # |ВАЖНЫЙ МОМЕНТ| копируем содержимое папки, где находится Dockerfile,
 # в рабочую директорию контейнера
 # Устанавливаем порт, который будет использоваться для сервера
+WORKDIR /creatio_integration
 EXPOSE 5000
 # CMD [ "python3", "-m" , "flask", "--app", "sync_service" ,"run", "--host=0.0.0.0"]
 CMD ["gunicorn", "sync_service:app", "-b", "0.0.0.0:5000", "-w", "2", "--timeout", "600"]
