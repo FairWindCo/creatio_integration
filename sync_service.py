@@ -84,26 +84,26 @@ def index():
     return "Hello, {}!".format(auth.current_user())
 
 
-@app.route('/import_logs')
+@app.route('/logs')
 @auth.login_required
 def import_logs():
     return read_file(logs_path+'operation.log')
 
 
-@app.route('/logs')
+@app.route('/general_logs')
 @auth.login_required
-def import_logs():
+def general_logs():
     return read_file(logs_path+'general.log')
 
-@app.route('/user_logs')
+@app.route('/user_info')
 @auth.login_required
-def import_logs():
+def user_import_info():
     return read_file(logs_path+'UserInfo.log')
 
 
-@app.route('/ldap_logs')
+@app.route('/ldap_info')
 @auth.login_required
-def import_logs():
+def ldap_import_info():
     return read_file(logs_path+'LdapInfo.log')
 
 
