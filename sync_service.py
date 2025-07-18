@@ -53,12 +53,18 @@ auth_data = {
 @app.route('/license_count', methods=['GET'])
 @auth.login_required
 def license_count():
-    return  get_licenses_count_info(config)
+    try:
+        return  get_licenses_count_info(config)
+    except Exception as ex:
+        return jsonify({"error": str(ex)})
 
 @app.route('/licenses', methods=['GET'])
 @auth.login_required
 def license_info():
-    return  get_licenses_info(config)
+    try:
+        return  get_licenses_info(config)
+    except Exception as ex:
+        return jsonify({"error": str(ex)})
 
 
 @auth.verify_password
