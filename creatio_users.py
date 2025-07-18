@@ -11,7 +11,8 @@ from ldap_integration import save_data_to_json_file
 
 
 def get_licenses_info(config):
-    try:
+    logger = logging.getLogger()
+    try:        
         logger.debug("Connecting to DB...")
         connect = get_db_connection(config.get("database", {
             "SERVER": '127.0.0.1', "DATABASE": "<DB>", "UID": "<UID>", "PWD": "<PWD>", }))
@@ -26,6 +27,7 @@ def get_licenses_info(config):
         return []
 
 def get_licenses_count_info(config):
+    logger = logging.getLogger()
     try:
         logger.debug("Connecting to DB...")
         connect = get_db_connection(config.get("database", {
