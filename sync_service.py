@@ -90,6 +90,23 @@ def import_logs():
     return read_file(logs_path+'operation.log')
 
 
+@app.route('/logs')
+@auth.login_required
+def import_logs():
+    return read_file(logs_path+'general.log')
+
+@app.route('/user_logs')
+@auth.login_required
+def import_logs():
+    return read_file(logs_path+'UserInfo.log')
+
+
+@app.route('/ldap_logs')
+@auth.login_required
+def import_logs():
+    return read_file(logs_path+'LdapInfo.log')
+
+
 @app.route('/combine_logs')
 @auth.login_required
 def combine_logs():
@@ -221,8 +238,10 @@ heartbeat = 0
 def users_sync_function(config):
     global last_users_sync
     try:
+        general_logger.info(f"user sync started")
         create_user_from_ldap_and_contacts(config, user_info_logger, success_user_logger, logs_path)
         last_users_sync = datetime.now().timestamp()
+        general_logger.info(f"user sync finished")
     except Exception as e:
         user_info_logger.error(e)
 
@@ -231,11 +250,12 @@ def users_sync_function(config):
 
 
 def ldap_sync_function(config):
-    global last_ldap_sync
+    global last_ldap_sync    
     try:
-
+        general_logger.info(f"ldap sync started")
         sync_ldap_records(config, ldap_info_logger, success_ldap_logger, logs_path)
         last_ldap_sync = datetime.now().timestamp()
+        general_logger.info(f"ldap sync finished")
     except Exception as e:
         ldap_info_logger.error(e)
 
