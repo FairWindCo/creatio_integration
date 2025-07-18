@@ -220,7 +220,7 @@ def return_records(cursor, sql):
     return results
 
 def get_license_count(cursor):
-    sql = """SELECT  lp.name, count(u.id) 
+    sql = """SELECT  lp.name, count(u.id) as used_licenses
 FROM dbo.SysAdminUnit as u,
 dbo.SysLicUser as l,
 dbo.SysLicPackage as lp
@@ -229,12 +229,11 @@ group by lp.name"""
     return return_records(cursor, sql)
 
 def get_licenses(cursor):
-    sql = """SELECT  lp.name, count(u.id)
+    sql = """SELECT  u.Name, lp.name
              FROM dbo.SysAdminUnit as u,
                   dbo.SysLicUser as l,
                   dbo.SysLicPackage as lp
-             where u.id = l.sysuserid and l.syslicpackageid=lp.id
-             group by lp.name"""
+             where u.id = l.sysuserid and l.syslicpackageid=lp.id"""
     return return_records(cursor, sql)
 
 def combine_users_records(cursor, creatio_api,
