@@ -316,6 +316,15 @@ class CreatioAPI(Creatio):
             return users[0]
         return None
 
+    def get_lic_package_by_name(self, package_by_name):        
+        users = self.get_objects('SysLicPackage',
+                                 fields=['Id', 'Name',],
+                                 filter=f"Name eq '{package_by_name}'"
+                                 )
+        if users:
+            return users[0]
+        return None
+
     def get_users_with_domain_login(self):
         users = self.get_objects('SysAdminUnit',
                                  # fields=['Id', 'Name', 'SysAdminUnitTypeValue', 'Active', 'Description',

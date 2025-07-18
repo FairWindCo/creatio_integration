@@ -1,4 +1,5 @@
 import logging
+from sqlite3.dbapi2 import paramstyle
 
 
 def insert_user_record(cursor, name, contact_id, ldap_record,
@@ -28,7 +29,9 @@ def insert_user_record(cursor, name, contact_id, ldap_record,
 
 def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
                        creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
-                       sysculture_id='A5420246-0A8E-E111-84A3-00155D054C03',                       ):
+                       sysculture_id='A5420246-0A8E-E111-84A3-00155D054C03',      
+                                parent_role_id=None,connection_type:int=1
+                                ):
     cursor.execute(f"SELECT COUNT(name) from dbo.SysAdminUnit WHERE name = '{name}'")
     if cursor.fetchall()[0][0] == 0:
         ldap_id = ldap_record['Id']
@@ -39,15 +42,17 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
             f'DECLARE @InsertedIds TABLE (Id UNIQUEIDENTIFIER); '
             f'INSERT INTO  dbo.SysAdminUnit(name, ContactId, LDAPEntryId, LDAPEntry,LDAPElementId,'
             f'LDAPEntryDN, SysAdminUnitTypeValue, Active,'
-            f'SynchronizeWithLDAP,CreatedById, ModifiedById,IsDirectoryEntry,SysCultureId,ConnectionType) '
+            f'SynchronizeWithLDAP,CreatedById, ModifiedById,IsDirectoryEntry,SysCultureId,ConnectionType,ParentRoleId) '
             f'OUTPUT INSERTED.Id INTO @InsertedIds'
-            f" VALUES('{name}','{contact_id}','{ldap_entry_code}','{ldap_name}','{ldap_id}','{ldap_dn}', "
-            f" 4,1, 1,'{creator_id}','{creator_id}',0, '{sysculture_id}', 0);"
+            f" VALUES(?, ?, ?, ?, ?, ?, 4, 1, 1, ?, ?, 0, ?, ?, ?);"
             f" SELECT Id FROM @InsertedIds;")
+        
         logger.info(f'Inserting SysAdminUnit record {name}')
         logger.debug(sql)
         try:
-            cursor.execute(sql)
+            params = (name, contact_id, ldap_entry_code, ldap_name, ldap_id, ldap_dn,
+                        creator_id, creator_id, sysculture_id,connection_type, parent_role_id)
+            cursor.execute(sql , params)
             while True:
                 if cursor.description:
                     break
@@ -61,7 +66,7 @@ def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
             
             recordid = row[0]
             #cursor.execute('SELECT @@Identity AS ID')
-            print(f'Record SysAdminUnit({name}) with record ID {recordid} created.')
+            print(f'Record SysAdminUnit({name}) with record ID {recordid} created with {parent_role_id}.')
             logger.debug(f'Record SysAdminUnit({name}) with record ID {recordid} created.')
             cursor.commit()
             return recordid
@@ -91,7 +96,102 @@ def insert_user_role_record(cursor, user_id, role_id,
             print(e)
             return False
 
+def insert_user_sysrole_record(cursor, user_id, role_id,
+                            creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
+                            debug=False):
+    cursor.execute(f"SELECT COUNT(SysAdminUnitId) from dbo.SysAdminUnitInRole WHERE SysAdminUnitId='{user_id}' AND SysAdminUnitRoleId='{role_id}'")
+    if cursor.fetchall()[0][0] == 0:
+        sql_role = (
+            f'INSERT INTO  dbo.SysAdminUnitInRole(SysAdminUnitId, SysAdminUnitRoleId, ProcessListeners, CreatedById, ModifiedById, Source) '
+            f" VALUES('{user_id}','{role_id}', 0, '{creator_id}','{creator_id}', 18)")
+        sql_self = (
+            f'INSERT INTO  dbo.SysAdminUnitInRole(SysAdminUnitId, SysAdminUnitRoleId, ProcessListeners, CreatedById, ModifiedById, Source) '
+            f" VALUES('{user_id}','{role_id}', 0, '{creator_id}','{creator_id}', 2)")
+        
+        if debug:
+            print(sql_role)
+            print(sql_self)
+        try:
+            cursor.execute(sql_role)
+            cursor.execute(sql_self)
+            cursor.commit()
+            return True
+        except Exception as e:
+            print(sql_role)
+            print(sql_self)
+            print(e)
+            return False
 
+def insert_user_sysrole_record(cursor, user_id, role_id,
+                               creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
+                               debug=False):
+    cursor.execute(f"SELECT COUNT(SysAdminUnitId) from dbo.SysAdminUnitInRole WHERE SysAdminUnitId='{user_id}' AND SysAdminUnitRoleId='{role_id}'")
+    if cursor.fetchall()[0][0] == 0:
+        sql_role = (
+            f'INSERT INTO  dbo.SysAdminUnitInRole(SysAdminUnitId, SysAdminUnitRoleId, ProcessListeners, CreatedById, ModifiedById, Source) '
+            f" VALUES('{user_id}','{role_id}', 0, '{creator_id}','{creator_id}', 18)")
+        if debug:
+            print(sql_role)
+        try:
+            cursor.execute(sql_role)
+            cursor.commit()
+            return True
+        except Exception as e:
+            print(sql_role)
+            print(e)
+            return False
+
+
+def insert_user_self_role_record(cursor, user_id, creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
+                               debug=False):
+    cursor.execute(f"SELECT COUNT(SysAdminUnitId) from dbo.SysAdminUnitInRole WHERE SysAdminUnitId='{user_id}' AND SysAdminUnitRoleId='{user_id}'")
+    if cursor.fetchall()[0][0] == 0:
+        sql_self = (
+            f'INSERT INTO  dbo.SysAdminUnitInRole(SysAdminUnitId, SysAdminUnitRoleId, ProcessListeners, CreatedById, ModifiedById, Source) '
+            f" VALUES('{user_id}','{user_id}', 0, '{creator_id}','{creator_id}', 1)")
+
+        if debug:
+            print(sql_self)
+        try:
+            cursor.execute(sql_self)
+            cursor.commit()
+            return True
+        except Exception as e:
+            print(sql_self)
+            print(e)
+            return False
+
+
+def insert_license_record(cursor, user_id, license_id,
+                               creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
+                               debug=False):
+    cursor.execute(f"SELECT COUNT(SysUserId) from dbo.SysLicUser WHERE SysUserId='{user_id}' AND SysLicPackageId='{license_id}'")
+    if cursor.fetchall()[0][0] == 0:
+        sql_role = (
+            f'INSERT INTO  dbo.SysLicUser(SysUserId, SysLicPackageId, ProcessListeners, CreatedById, ModifiedById, Source, Active) '
+            f" VALUES('{user_id}','{license_id}', 0, '{creator_id}','{creator_id}', 1, 1)")
+        if debug:
+            print(sql_role)
+        try:
+            cursor.execute(sql_role)
+            cursor.commit()
+            return True
+        except Exception as e:
+            print(sql_role)
+            print(e)
+            return False
+
+
+def get_license_id(cursor, name,
+                          debug=False):
+    sql = f"SELECT Id from dbo.SysLicPackage WHERE Name='{name}'"
+    print(sql)
+    cursor.execute(sql)
+    data = cursor.fetchall()[0] 
+    if data:
+        return data[0]
+    return None
+        
 
 
 def combine_role(cursor, creatio_api,role_name:str = 'All employees',
@@ -111,6 +211,31 @@ def combine_role(cursor, creatio_api,role_name:str = 'All employees',
             print(f'Role {role_name} don`t exist')
             return False
 
+def return_records(cursor, sql):
+    cur = cursor.execute(sql)
+    columns = [column[0] for column in cur.description]
+    results = []
+    for row in cur.fetchall():
+        results.append(dict(zip(columns, row)))
+    return results
+
+def get_license_count(cursor):
+    sql = """SELECT  lp.name, count(u.id) 
+FROM dbo.SysAdminUnit as u,
+dbo.SysLicUser as l,
+dbo.SysLicPackage as lp
+where u.id = l.sysuserid and l.syslicpackageid=lp.id
+group by lp.name"""
+    return return_records(cursor, sql)
+
+def get_licenses(cursor):
+    sql = """SELECT  lp.name, count(u.id)
+             FROM dbo.SysAdminUnit as u,
+                  dbo.SysLicUser as l,
+                  dbo.SysLicPackage as lp
+             where u.id = l.sysuserid and l.syslicpackageid=lp.id
+             group by lp.name"""
+    return return_records(cursor, sql)
 
 def combine_users_records(cursor, creatio_api,
                           creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
@@ -138,7 +263,7 @@ def combine_users_records(cursor, creatio_api,
 
                 simple_login_name = contact_login.split('\\')[1]
                 try:
-                    insert_user_record(cursor, simple_login_name, contact_id, ldap_record, creator_id, sysculture_id, debug)
+                    insert_user_record(cursor, simple_login_name, contact_id, ldap_record, creator_id, sysculture_id)
                 except Exception as e:
                     logger.error(f"ERROR CREATE USER: {e}")
             else:

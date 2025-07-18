@@ -4,11 +4,11 @@ from datetime import datetime
 from os import path
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, json
+from flask import Flask, json, jsonify, Response
 from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
-from creatio_users import create_user_from_ldap_and_contacts
+from creatio_users import create_user_from_ldap_and_contacts, get_licenses_count_info, get_licenses_info
 from ldap_integration import sync_ldap_records_and_contacts, sync_ldap_records
 
 logging.basicConfig(level=logging.INFO, filename="py_log.log",filemode="w",
@@ -50,6 +50,16 @@ auth_data = {
 
 
 
+@app.route('/license_count', methods=['GET'])
+@auth.login_required
+def license_count():
+    return  get_licenses_count_info(config)
+
+@app.route('/licenses', methods=['GET'])
+@auth.login_required
+def license_info():
+    return  get_licenses_info(config)
+
 
 @auth.verify_password
 def verify_password(username, password):
@@ -83,34 +93,34 @@ def combine_logs():
 @app.route('/ldaps')
 @auth.login_required
 def ldaps():
-    return read_file(os.path.join(logs_path,'ldap_entries.json'))
+    return read_json((os.path.join(logs_path,'ldap_entries.json')))
 
 
 @app.route('/users')
 @auth.login_required
 def users():
-    return read_file(os.path.join(logs_path,'creatio_users.json'))
+    return read_json(os.path.join(logs_path,'creatio_users.json'))
 
 
 @app.route('/get_ldap_entries')
 @auth.login_required
 def get_ldap_entries():
     if creatio_api.login():
-        return creatio_api.get_ldap_info()
+        return jsonify(creatio_api.get_ldap_info())
     else:
         return {"ERROR": 'login creatio api failed!'}
 
 @app.route('/config')
 @auth.login_required
 def get_config():
-    return json.dumps(config)
+    return jsonify(json.dumps(config))
 
 
 @app.route('/get_creatio_users')
 @auth.login_required
 def get_creatio_users():
     if creatio_api.login():
-        return creatio_api.get_short_users()
+        return jsonify(creatio_api.get_short_users())
     else:
         return {"ERROR": 'login creatio api failed!'}
 
@@ -122,13 +132,13 @@ def health():
     ldap_sync = (current_time - last_ldap_sync) < update_interval
     heartbeat_status = (current_time - heartbeat) < 60
     status = users_sync and ldap_sync
-    return {"status": "ok" if status else "failed",
+    return jsonify({"status": "ok" if status else "failed",
             "sync_ldap_entries":"ok" if ldap_sync else "failed",
             "sync_users": "ok" if users_sync else "failed",
             "heartbeat_status": "ok" if heartbeat_status else "failed",
             "current_time": datetime.now().isoformat(),
             "last_user_sync:": datetime.fromtimestamp(last_users_sync).isoformat(),
-            "last_ldap_sync:": datetime.fromtimestamp(last_ldap_sync).isoformat()}
+            "last_ldap_sync:": datetime.fromtimestamp(last_ldap_sync).isoformat()})
 
 
 def heartbeat_job():
@@ -139,10 +149,19 @@ def heartbeat_job():
 def read_file(file_name):
     if path.exists(file_name):
         with open(file_name, 'r') as f:
-            return f"FILE: {file_name} CONTAIN:\n{f.read()}"
+            return Response(f"FILE: {file_name} CONTAIN:\n{f.read()}", mimetype='text/plain; charset=utf-8')
     else:
-        return f"{file_name} does not exist!"
+        return Response(f"{file_name} does not exist!", mimetype='text/plain; charset=utf-8')
 
+def read_json(file_name):
+    if path.exists(file_name):
+        
+        with open(file_name, 'r') as f:
+            content = json.load(f)
+            pretty = json.dumps(content, indent=2, ensure_ascii=False)  # для красивого виводу
+            return Response(pretty, mimetype="application/json; charset=utf-8")
+    else:
+        return Response(f"{file_name} does not exist!", mimetype='text/plain; charset=utf-8')
 
 def update_config_secrets(config: dict, base_path: str = '/opt/secrets/', update_secrets=None):
     if update_secrets is None:
