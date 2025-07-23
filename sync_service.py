@@ -151,7 +151,7 @@ def get_config():
     return jsonify(json.dumps(config))
 
 
-@app.route('/contacts')
+@app.route('/contacts_json')
 @auth.login_required
 def get_contacts():
     try:
@@ -159,6 +159,60 @@ def get_contacts():
         return jsonify(get_users(config, filter_param))
     except Exception as ex:
         return jsonify({"error": str(ex)})
+
+from flask import request, render_template_string
+
+@app.route('/contacts')
+@auth.login_required
+def contacts_human():
+    filter_param = request.args.get('filter')
+    try:
+        contacts = get_users(config, filter_param)
+    except Exception as ex:
+        return f"<h2>❌ Помилка: {str(ex)}</h2>", 500
+
+    # Визначаємо всі унікальні ключі з усіх записів
+    all_keys = sorted({key for contact in contacts for key in contact.keys()})
+
+    html_template = """
+    <h1>📋 Контакти (всі поля)</h1>
+    <form method="get">
+        <input type="text" name="filter" value="{{ request.args.get('filter', '') }}" placeholder="Пошук по всьому..." />
+        <button type="submit">🔍 Пошук</button>
+    </form>
+    <br>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+            {% for key in all_keys %}
+                <th>{{ key }}</th>
+            {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for contact in contacts %}
+            <tr>
+            {% for key in all_keys %}
+                {% set value = contact.get(key, "") %}
+                <td>
+                    {% if value is sameas true %}
+                        ✅
+                    {% elif value is sameas false %}
+                        ❌
+                    {% else %}
+                        {{ value }}
+                    {% endif %}
+                </td>
+            {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p>Знайдено записів: {{ contacts|length }}</p>
+    """
+
+    return render_template_string(html_template, contacts=contacts, all_keys=all_keys, request=request)
+
 
 
 @app.route('/get_creatio_users')

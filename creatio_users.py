@@ -190,5 +190,6 @@ if __name__ == '__main__':
     with open('import.config') as f:
         config = json.load(f)
     logger = logging.getLogger()
-    create_user_from_ldap_and_contacts(config, logger, logger, log_path='')
+    #create_user_from_ldap_and_contacts(config, logger, logger, log_path='')
+    print(get_users(config, 'Man'))
     #save_data_to_json_file(config)

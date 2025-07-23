@@ -248,7 +248,8 @@ def return_records(cursor, sql, *params):
 
 
 def search_contacts(cursor, search=None):
-    sql = """SELECT contact.[Id]
+    sql = """
+          SELECT contact.[Id]
                ,contact.[Name]
                ,contact.[JobTitle]
                ,contact.[UsrERCLogin]
@@ -263,29 +264,35 @@ def search_contacts(cursor, search=None):
                ,contact.[MscCorpPhone]
                ,contact.[MscReasonForTemporaryAbsence]
                ,contact.[MscLogin]
-               ,bos.[Name]
-               ,bos.JobTitle
-               ,bos.email
-               ,bos.MscCorpPhone
-               ,bos.UsrERCLogin
-               ,bos.Phone
-
+               ,bos.[Name] as boss_name
+               ,bos.JobTitle as boss_job_title
+               ,bos.email as boss_email
+               ,bos.MscCorpPhone as boss_phone
+               ,bos.UsrERCLogin as boss_login
+               ,bos.Phone as boss_personal_phone
           FROM [dbo].[Contact] as contact
-              left join dbo.MscDivisionL3 as dev on MscDivisionL3Id = dev.Id
-              left join dbo.MscSubdivision as sub on MscSubdivisionId = sub.Id
-              left join dbo.MscSectionL4 as sec on contact.MscSectionL4Id = sec.Id
-              left join dbo.Department as dep on contact.MscDepartmentId = dep.Id
-              left join dbo.Contact as bos on contact.MscImmediateBossId = bos.Id
-              left join dbo.MscDistrictL5 as distl5 on contact.MscDistrictL5Id = distl5.Id
-              left join dbo.MscGroup as grp on contact.MscGroupId = grp.Id    
-    """
+              LEFT JOIN dbo.MscDivisionL3 as dev ON contact.MscDivisionL3Id = dev.Id
+              LEFT JOIN dbo.MscSubdivision as sub ON contact.MscSubdivisionId = sub.Id
+              LEFT JOIN dbo.MscSectionL4 as sec ON contact.MscSectionL4Id = sec.Id
+              LEFT JOIN dbo.Department as dep ON contact.MscDepartmentId = dep.Id
+              LEFT JOIN dbo.Contact as bos ON contact.MscImmediateBossId = bos.Id
+              LEFT JOIN dbo.MscDistrictL5 as distl5 ON contact.MscDistrictL5Id = distl5.Id
+              LEFT JOIN dbo.MscGroup as grp ON contact.MscGroupId = grp.Id \
+          """
+
     if search:
-        pattern = f'%{search}%'
-        sql += (f"WHERE LOWER(LTRIM(RTRIM(contact.[UsrERCLogin]))) like LOWER(?) or "
-                f" LOWER(LTRIM(RTRIM(contact.[Name]))) COLLATE Cyrillic_General_CI_AS  like LOWER(?) or "
-                f" LOWER(LTRIM(RTRIM(contact.JobTitle))) COLLATE Cyrillic_General_CI_AS  like LOWER(?) ")
+        pattern = f"%{search}%"
+        sql += """
+            WHERE (
+                LOWER(LTRIM(RTRIM(contact.[UsrERCLogin]))) LIKE LOWER(?) OR
+                LOWER(LTRIM(RTRIM(contact.[Name]))) COLLATE Cyrillic_General_CI_AS LIKE LOWER(?) OR
+                LOWER(LTRIM(RTRIM(contact.JobTitle))) COLLATE Cyrillic_General_CI_AS LIKE LOWER(?)
+            )
+        """
         return return_records(cursor, sql, pattern, pattern, pattern)
+
     return return_records(cursor, sql)
+
     
 
 
