@@ -128,13 +128,13 @@ def users():
 
 @app.route('/get_last_ldaps')
 @auth.login_required
-def ldaps():
+def ldaps_templated():
     return read_json_human((os.path.join(logs_path,'ldap_entries.json')))
 
 
 @app.route('/get_last_users')
 @auth.login_required
-def users():
+def users_templated():
     return read_json_human(os.path.join(logs_path,'creatio_users.json'))
 
 @app.route('/get_ldap_entries')
