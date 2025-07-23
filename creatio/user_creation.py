@@ -1,6 +1,8 @@
 import logging
 from sqlite3.dbapi2 import paramstyle
 
+import pyodbc
+
 
 def insert_user_record(cursor, name, contact_id, ldap_record,
                        creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
@@ -27,6 +29,31 @@ def insert_user_record(cursor, name, contact_id, ldap_record,
             print(e)
         cursor.commit()
 
+def update_user_activity(cursor, logger):
+        try:
+    
+            update_sql = """
+                         UPDATE u
+                         SET u.Active = CASE
+                                            WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
+                                            ELSE 0
+                             END
+                             FROM dbo.SysAdminUnit AS u
+                         LEFT JOIN dbo.Contact AS c ON u.ContactId = c.Id
+                         WHERE u.Active <> CASE
+                             WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
+                             ELSE 0
+                         END; \
+                         """
+        
+            cursor.execute(update_sql)
+            affected_rows = cursor.rowcount
+            logger.info(f"🔄 Оновлено записів: {affected_rows}")
+            return affected_rows
+        except pyodbc.Error as e:
+            logger.error("❌ Database error:", e)
+            return -1
+        
 def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
                        creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
                        sysculture_id='A5420246-0A8E-E111-84A3-00155D054C03',      
@@ -211,13 +238,56 @@ def combine_role(cursor, creatio_api,role_name:str = 'All employees',
             print(f'Role {role_name} don`t exist')
             return False
 
-def return_records(cursor, sql):
-    cur = cursor.execute(sql)
+def return_records(cursor, sql, *params):
+    cur = cursor.execute(sql, *params)
     columns = [column[0] for column in cur.description]
     results = []
     for row in cur.fetchall():
         results.append(dict(zip(columns, row)))
     return results
+
+
+def get_contacts(cursor, search=None):
+    sql = """SELECT contact.[Id]
+               ,contact.[Name]
+               ,contact.[JobTitle]
+               ,contact.[UsrERCLogin]
+               ,dev.[Name] as division
+               ,sub.[Name] as subdivision
+               ,sec.[Name] as section_l4
+               ,dep.[Name] as department
+               ,grp.[Name] as group_name
+               ,distl5.[Name] as distl5
+               ,contact.[MscActivity]
+               ,contact.[MscEmployeeQR]
+               ,contact.[MscCorpPhone]
+               ,contact.[MscReasonForTemporaryAbsence]
+               ,contact.[MscLogin]
+               ,bos.[Name]
+               ,bos.JobTitle
+               ,bos.email
+               ,bos.MscCorpPhone
+               ,bos.UsrERCLogin
+               ,bos.Phone
+
+          FROM [dbo].[Contact] as contact
+              left join dbo.MscDivisionL3 as dev on MscDivisionL3Id = dev.Id
+              left join dbo.MscSubdivision as sub on MscSubdivisionId = sub.Id
+              left join dbo.MscSectionL4 as sec on contact.MscSectionL4Id = sec.Id
+              left join dbo.Department as dep on contact.MscDepartmentId = dep.Id
+              left join dbo.Contact as bos on contact.MscImmediateBossId = bos.Id
+              left join dbo.MscDistrictL5 as distl5 on contact.MscDistrictL5Id = distl5.Id
+              left join dbo.MscGroup as grp on contact.MscGroupId = grp.Id    
+    """
+    if search:
+        pattern = f'%{search}%'
+        sql += (f"WHERE LOWER(LTRIM(RTRIM(contact.[UsrERCLogin]))) like LOWER(?) or "
+                f" LOWER(LTRIM(RTRIM(contact.[Name]))) COLLATE Cyrillic_General_CI_AS  like LOWER(?) or "
+                f" LOWER(LTRIM(RTRIM(contact.JobTitle))) COLLATE Cyrillic_General_CI_AS  like LOWER(?) ")
+        return return_records(cursor, sql, pattern, pattern, pattern)
+    return return_records(cursor, sql)
+    
+
 
 def get_license_count(cursor):
     sql = """SELECT  lp.name, count(u.id) as used_licenses
