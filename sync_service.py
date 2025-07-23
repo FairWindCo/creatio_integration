@@ -171,47 +171,72 @@ def contacts_human():
     except Exception as ex:
         return f"<h2>❌ Помилка: {str(ex)}</h2>", 500
 
-    # Визначаємо всі унікальні ключі з усіх записів
-    all_keys = sorted({key for contact in contacts for key in contact.keys()})
+    # 📌 Явно заданий список полів і заголовків
+    table_fields = [
+        ("Name", "Ім'я"),
+        ("JobTitle", "Посада"),
+        ("UsrERCLogin", "Логін"),
+        ("email", "Email"),
+        ("Phone", "Телефон"),
+        ("MscCorpPhone", "Внутрішній телефон"),
+        ("subdivision", "Підрозділ"),        
+        ("division", "Відділ"),
+        ("section_l4", "Секція"),
+        ("department", "Департамент"),
+        ("group_name", "Група"),
+        ("distl5", "Дільниця (рівень 5)"),
+        ("MscReasonForTemporaryAbsence", "Причина відсутності"),        
+        ("MscEmployeeQR", "QR"),        
+        ("MscActivity", "Працює"),
+        ('boss_name', 'Керівник')
+        ('boss_email', 'Email керівника')
+        ('boss_login', 'Логін керівника')
+        ('boss_personal_phone', 'Телефон Телефон керівника')
+        ('boss_phone', 'Телефон керівника (службовий)')
+        
+    ]
 
     html_template = """
-    <h1>📋 Контакти (всі поля)</h1>
+    <h1>📋 Контакти</h1>
     <form method="get">
-        <input type="text" name="filter" value="{{ request.args.get('filter', '') }}" placeholder="Пошук по всьому..." />
+        <input type="text" name="filter" value="{{ request.args.get('filter', '') }}" placeholder="Пошук..." />
         <button type="submit">🔍 Пошук</button>
     </form>
     <br>
     <table border="1" cellpadding="5" cellspacing="0">
         <thead>
             <tr>
-            {% for key in all_keys %}
-                <th>{{ key }}</th>
-            {% endfor %}
+                {% for field, title in table_fields %}
+                    <th>{{ title }}</th>
+                {% endfor %}
             </tr>
         </thead>
         <tbody>
-        {% for contact in contacts %}
-            <tr>
-            {% for key in all_keys %}
-                {% set value = contact.get(key, "") %}
-                <td>
-                    {% if value is sameas true %}
-                        ✅
-                    {% elif value is sameas false %}
-                        ❌
-                    {% else %}
-                        {{ value }}
-                    {% endif %}
-                </td>
+            {% for contact in contacts %}
+                <tr>
+                    {% for field, title in table_fields %}
+                        {% set value = contact.get(field, "") %}
+                        <td>
+                            {% if value is sameas true %}
+                                ✅
+                            {% elif value is sameas false %}
+                                ❌
+                            {% elif value is none %}
+                                &nbsp;
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
             {% endfor %}
-            </tr>
-        {% endfor %}
         </tbody>
     </table>
     <p>Знайдено записів: {{ contacts|length }}</p>
     """
 
-    return render_template_string(html_template, contacts=contacts, all_keys=all_keys, request=request)
+    return render_template_string(html_template, contacts=contacts, table_fields=table_fields, request=request)
+
 
 
 
