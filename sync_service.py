@@ -510,10 +510,10 @@ def init_app():
     scheduler.add_job(heartbeat_job, 'interval', seconds=60)
     scheduler.add_job(ldap_sync_function, 'interval',
                       next_run_time=datetime.now(),
-                      seconds=update_interval, args=[config])    
-    scheduler.add_job(users_sync_function, 'interval',
+                      seconds=update_interval, args=[config])
+    scheduler.add_job(user_access_right_check, 'interval',
                       next_run_time=datetime.now(),
-                      seconds=user_access_right_check, args=[config])    
+                      seconds=update_interval, args=[config])    
     scheduler.add_job(users_sync_function, 'interval',
                       next_run_time=datetime.now(),
                       seconds=update_interval, args=[config])
