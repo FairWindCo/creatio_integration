@@ -154,8 +154,11 @@ def get_config():
 @app.route('/contacts')
 @auth.login_required
 def get_contacts():
-    filter_param = request.args.get('filter')
-    return jsonify(get_contacts(config, filter_param))
+    try:
+        filter_param = request.args.get('filter')
+        return jsonify(get_contacts(config, filter_param))
+    except Exception as ex:
+        return jsonify({"error": str(ex)})
 
 
 @app.route('/get_creatio_users')
