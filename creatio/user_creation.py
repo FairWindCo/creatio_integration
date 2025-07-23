@@ -40,7 +40,7 @@ def update_user_activity(cursor, logger):
                              END
                              FROM dbo.SysAdminUnit AS u
                          LEFT JOIN dbo.Contact AS c ON u.ContactId = c.Id
-                         WHERE (u.LDAPEntryId IS NOT NULL AND u.LDAPEntryId <> '') AND u.Active <> CASE
+                         WHERE (u.LDAPEntryId IS NOT NULL AND u.LDAPEntryId <> '' AND MscActivity IS NOT NULL) AND u.Active <> CASE
                              WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
                              ELSE 0
                          END; \
