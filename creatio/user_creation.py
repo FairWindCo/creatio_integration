@@ -247,7 +247,7 @@ def return_records(cursor, sql, *params):
     return results
 
 
-def get_contacts(cursor, search=None):
+def search_contacts(cursor, search=None):
     sql = """SELECT contact.[Id]
                ,contact.[Name]
                ,contact.[JobTitle]

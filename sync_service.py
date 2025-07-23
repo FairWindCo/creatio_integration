@@ -9,7 +9,7 @@ from flask import Flask, json, jsonify, Response, request, render_template_strin
 from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
-from creatio_users import create_user_from_ldap_and_contacts, get_licenses_count_info, get_licenses_info
+from creatio_users import create_user_from_ldap_and_contacts, get_licenses_count_info, get_licenses_info, get_users
 from ldap_integration import sync_ldap_records_and_contacts, sync_ldap_records
 
 logging.basicConfig(level=logging.INFO, filename="py_log.log",filemode="w",
@@ -156,7 +156,7 @@ def get_config():
 def get_contacts():
     try:
         filter_param = request.args.get('filter')
-        return jsonify(get_contacts(config, filter_param))
+        return jsonify(get_users(config, filter_param))
     except Exception as ex:
         return jsonify({"error": str(ex)})
 

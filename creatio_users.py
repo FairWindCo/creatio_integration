@@ -6,7 +6,7 @@ from creatio.creatio_api import get_api_connector
 from creatio.db import get_db_connection, get_contact_id
 from creatio.user_creation import combine_users_records, combine_role, insert_user_record_with_log, \
     insert_user_role_record, insert_user_sysrole_record, insert_user_self_role_record, insert_license_record, \
-    get_license_id, get_licenses, get_license_count, get_contacts, update_user_activity
+    get_license_id, get_licenses, get_license_count, search_contacts, update_user_activity
 from ldap_integration import save_data_to_json_file
 
 
@@ -38,7 +38,7 @@ def get_users(config, search):
         logger.error(f'DB Connection Error: {e}')
 
     if cursor is not None:
-        return get_contacts(cursor, search)
+        return search_contacts(cursor, search)
     else:
         return []
 
