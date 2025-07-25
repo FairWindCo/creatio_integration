@@ -9,7 +9,8 @@ from flask import Flask, json, jsonify, Response, request, render_template_strin
 from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
-from creatio_users import create_user_from_ldap_and_contacts, get_licenses_count_info, get_licenses_info, get_users
+from creatio_users import create_user_from_ldap_and_contacts, get_licenses_count_info, get_licenses_info, get_users, \
+    get_users_for_update
 from ldap_integration import sync_ldap_records_and_contacts, sync_ldap_records
 
 logging.basicConfig(level=logging.INFO, filename="py_log.log",filemode="w",
@@ -239,6 +240,61 @@ def contacts_human():
         return f"<h2>❌ Помилка: {str(ex)}</h2>", 500
 
 
+@app.route('/need_update')
+@auth.login_required
+def user_for_rights_update():
+    logger = logging.getLogger()
+
+    try:
+        contacts = get_users_for_update(config, logger)
+    except Exception as ex:
+        return f"<h2>❌ Помилка: {str(ex)}</h2>", 500
+
+    # 📌 Явно заданий список полів і заголовків
+    table_fields = [
+        ("Name", "Ім'я"),
+        ("Active", "Активний"),
+        ("MscActivity", "Працюэ"),
+        ("MscReasonForTemporaryAbsence", "Причина выдсутності"),
+    ]
+
+    html_template = """
+    <h1>📋 Контакти</h1>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                {% for field, title in table_fields %}
+                    <th>{{ title }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for contact in contacts %}
+                <tr>
+                    {% for field, title in table_fields %}
+                        {% set value = contact.get(field, "") %}
+                        <td>
+                            {% if value is sameas true %}
+                                ✅
+                            {% elif value is sameas false %}
+                                ❌
+                            {% elif value is none %}
+                                &nbsp;
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p>Знайдено записів: {{ contacts|length }}</p>
+    """
+    try:
+        return render_template_string(html_template, contacts=contacts, table_fields=table_fields, request=request)
+    except Exception as ex:
+        return f"<h2>❌ Помилка: {str(ex)}</h2>", 500
 
 
 @app.route('/get_creatio_users')

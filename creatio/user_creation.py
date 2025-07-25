@@ -30,31 +30,51 @@ def insert_user_record(cursor, name, contact_id, ldap_record,
         cursor.commit()
 
 def update_user_activity(cursor, logger):
-        try:
+    try:
+
+        update_sql = """
+                     UPDATE u
+                     SET u.Active = CASE
+                                        WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
+                                        ELSE 0
+                         END
+                         FROM dbo.SysAdminUnit AS u
+                     LEFT JOIN dbo.Contact AS c ON u.ContactId = c.Id
+                     WHERE (u.LDAPEntryId IS NOT NULL AND u.LDAPEntryId <> '' AND MscActivity IS NOT NULL) AND u.Active <> CASE
+                         WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
+                         ELSE 0
+                     END; \
+                     """
     
-            update_sql = """
-                         UPDATE u
-                         SET u.Active = CASE
-                                            WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
-                                            ELSE 0
-                             END
-                             FROM dbo.SysAdminUnit AS u
-                         LEFT JOIN dbo.Contact AS c ON u.ContactId = c.Id
-                         WHERE (u.LDAPEntryId IS NOT NULL AND u.LDAPEntryId <> '' AND MscActivity IS NOT NULL) AND u.Active <> CASE
-                             WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
-                             ELSE 0
-                         END; \
-                         """
+        cursor.execute(update_sql)
+        affected_rows = cursor.rowcount
+        logger.info(f"🔄 Оновлено записів: {affected_rows}")
+        cursor.commit()
+        return affected_rows
+    except pyodbc.Error as e:
+        logger.error("❌ Database error:", e)
+        return -1
         
-            cursor.execute(update_sql)
-            affected_rows = cursor.rowcount
-            logger.info(f"🔄 Оновлено записів: {affected_rows}")
-            cursor.commit()
-            return affected_rows
-        except pyodbc.Error as e:
-            logger.error("❌ Database error:", e)
-            return -1
-        
+def need_update(cursor, logger):
+    try:
+
+        sql = """
+                     SELECT u.[Name], u.Active, c.MscActivity, c.MscReasonForTemporaryAbsence
+                     FROM dbo.SysAdminUnit AS u
+                     LEFT JOIN dbo.Contact AS c ON u.ContactId = c.Id
+                     WHERE (u.LDAPEntryId IS NOT NULL AND u.LDAPEntryId <> '' AND MscActivity IS NOT NULL) AND u.Active <> CASE
+                         WHEN c.MscActivity = 1 AND (c.MscReasonForTemporaryAbsence IS NULL OR c.MscReasonForTemporaryAbsence = '') THEN 1
+                         ELSE 0
+                     END; \
+                     """
+
+        cursor.execute(sql)
+        return return_records_simple(cursor, sql)
+    except pyodbc.Error as e:
+        logger.error("❌ Database error:", e)
+        return []
+
+
 def insert_user_record_with_log(logger, cursor, name, contact_id, ldap_record,
                        creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
                        sysculture_id='A5420246-0A8E-E111-84A3-00155D054C03',      
@@ -239,13 +259,115 @@ def combine_role(cursor, creatio_api,role_name:str = 'All employees',
             print(f'Role {role_name} don`t exist')
             return False
 
-def return_records(cursor, sql, *params):
+def return_records_simple(cursor, sql, *params):
     cur = cursor.execute(sql, *params)
     columns = [column[0] for column in cur.description]
     results = []
     for row in cur.fetchall():
         results.append(dict(zip(columns, row)))
     return results
+
+def return_records(cursor, sql, *params, page=None, page_size=None, count_total=False):
+    """
+    Виконує SQL запит з підтримкою пагінації
+    
+    Args:
+        cursor: курсор бази даних
+        sql: SQL запит
+        *params: параметри для SQL запиту
+        page: номер сторінки (починається з 1)
+        page_size: кількість записів на сторінці
+        count_total: чи підраховувати загальну кількість записів
+    
+    Returns:
+        dict з полями:
+        - data: список записів у вигляді словників
+        - page: поточна сторінка (якщо використовується пагінація)
+        - page_size: розмір сторінки
+        - total_records: загальна кількість записів (якщо count_total=True)
+        - total_pages: загальна кількість сторінок (якщо count_total=True)
+        - has_next: чи є наступна сторінка
+        - has_prev: чи є попередня сторінка
+    """
+
+    # Якщо пагінація не використовується, повертаємо як раніше
+    if page is None or page_size is None:
+        cur = cursor.execute(sql, *params)
+        columns = [column[0] for column in cur.description]
+        results = []
+        for row in cur.fetchall():
+            results.append(dict(zip(columns, row)))
+        return results
+
+    # Валідація параметрів пагінації
+    if page < 1:
+        raise ValueError("Номер сторінки повинен бути >= 1")
+    if page_size < 1:
+        raise ValueError("Розмір сторінки повинен бути >= 1")
+
+    total_records = None
+    total_pages = None
+
+    # Підрахунок загальної кількості записів (якщо потрібно)
+    if count_total:
+        # Створюємо COUNT запит з оригінального SQL
+        count_sql = f"SELECT COUNT(*) FROM ({sql}) AS count_query"
+        count_cur = cursor.execute(count_sql, *params)
+        total_records = count_cur.fetchone()[0]
+        total_pages = (total_records + page_size - 1) // page_size  # Округлення вгору
+
+    # Додаємо LIMIT і OFFSET до оригінального запиту
+    offset = (page - 1) * page_size
+    paginated_sql = f"{sql} LIMIT ? OFFSET ?"
+
+    # Виконуємо запит з пагінацією
+    cur = cursor.execute(paginated_sql, *params, page_size, offset)
+    columns = [column[0] for column in cur.description]
+
+    results = []
+    for row in cur.fetchall():
+        results.append(dict(zip(columns, row)))
+
+    # Визначаємо наявність попередніх/наступних сторінок
+    has_prev = page > 1
+    has_next = len(results) == page_size  # Якщо отримали повну сторінку, можливо є ще
+
+    # Якщо знаємо загальну кількість, точно визначаємо has_next
+    if total_pages is not None:
+        has_next = page < total_pages
+
+    return {
+        'data': results,
+        'page': page,
+        'page_size': page_size,
+        'total_records': total_records,
+        'total_pages': total_pages,
+        'has_next': has_next,
+        'has_prev': has_prev
+    }
+
+
+# Приклади використання:
+
+# 1. Без пагінації (як раніше)
+# records = return_records(cursor, "SELECT * FROM users WHERE active = ?", 1)
+
+# 2. З пагінацією
+# result = return_records(cursor, "SELECT * FROM users WHERE active = ?", 1, 
+#                        page=1, page_size=10)
+# print(f"Записи: {result['data']}")
+# print(f"Сторінка {result['page']} з {result.get('total_pages', '?')}")
+
+# 3. З підрахунком загальної кількості
+# result = return_records(cursor, "SELECT * FROM users WHERE active = ?", 1,
+#                        page=1, page_size=10, count_total=True)
+# print(f"Показано {len(result['data'])} з {result['total_records']} записів")
+
+# Альтернативний варіант з окремими методами:
+def return_records_paginated(cursor, sql, *params, page=1, page_size=20, count_total=False):
+    """Метод тільки для пагінації"""
+    return return_records(cursor, sql, *params, page=page, page_size=page_size, count_total=count_total)
+
 
 
 def search_contacts(cursor, search=None):
@@ -290,9 +412,9 @@ def search_contacts(cursor, search=None):
                 LOWER(LTRIM(RTRIM(contact.JobTitle))) COLLATE Cyrillic_General_CI_AS LIKE LOWER(?)
             )
         """
-        return return_records(cursor, sql, pattern, pattern, pattern)
+        return return_records_simple(cursor, sql, pattern, pattern, pattern)
 
-    return return_records(cursor, sql)
+    return return_records_simple(cursor, sql)
 
     
 
@@ -304,7 +426,7 @@ dbo.SysLicUser as l,
 dbo.SysLicPackage as lp
 where u.id = l.sysuserid and l.syslicpackageid=lp.id
 group by lp.name"""
-    return return_records(cursor, sql)
+    return return_records_simple(cursor, sql)
 
 def get_licenses(cursor):
     sql = """SELECT  u.Name, lp.name
@@ -312,7 +434,7 @@ def get_licenses(cursor):
                   dbo.SysLicUser as l,
                   dbo.SysLicPackage as lp
              where u.id = l.sysuserid and l.syslicpackageid=lp.id"""
-    return return_records(cursor, sql)
+    return return_records_simple(cursor, sql)
 
 def combine_users_records(cursor, creatio_api,
                           creator_id='410006e1-ca4e-4502-a9ec-e54d922d2c00',
