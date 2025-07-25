@@ -10,7 +10,7 @@ from flask_httpauth import HTTPBasicAuth
 
 from creatio.creatio_api import get_api_connector
 from creatio_users import create_user_from_ldap_and_contacts, get_licenses_count_info, get_licenses_info, get_users, \
-    get_users_for_update
+    get_users_for_update, update_user_activity_flag
 from ldap_integration import sync_ldap_records_and_contacts, sync_ldap_records
 
 logging.basicConfig(level=logging.INFO, filename="py_log.log",filemode="w",
@@ -600,7 +600,7 @@ def user_access_right_check(config):
     global last_access_rights_check, user_rights_changed
     try:
         general_logger.info(f"update user access rights started")
-        user_rights_changed = sync_ldap_records(config, ldap_info_logger, success_ldap_logger, logs_path)
+        user_rights_changed = update_user_activity_flag(config)
         last_access_rights_check = datetime.now().timestamp()
         general_logger.info(f"update user access rights finished")
     except Exception as e:
