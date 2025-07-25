@@ -188,12 +188,11 @@ def contacts_human():
         ("MscReasonForTemporaryAbsence", "Причина відсутності"),        
         ("MscEmployeeQR", "QR"),        
         ("MscActivity", "Працює"),
-        ('boss_name', 'Керівник')
-        ('boss_email', 'Email керівника')
-        ('boss_login', 'Логін керівника')
-        ('boss_personal_phone', 'Телефон Телефон керівника')
-        ('boss_phone', 'Телефон керівника (службовий)')
-        
+        ('boss_name', 'Керівник'),
+        ('boss_email', 'Email керівника'),
+        ('boss_login', 'Логін керівника'),
+        ('boss_personal_phone', 'Телефон Телефон керівника'),
+        ('boss_phone', 'Телефон керівника (службовий)')        
     ]
 
     html_template = """
