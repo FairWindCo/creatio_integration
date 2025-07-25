@@ -233,9 +233,11 @@ def contacts_human():
         </tbody>
     </table>
     <p>Знайдено записів: {{ contacts|length }}</p>
-    """
-
-    return render_template_string(html_template, contacts=contacts, table_fields=table_fields, request=request)
+    """    
+    try:
+        return render_template_string(html_template, contacts=contacts, table_fields=table_fields, request=request)
+    except Exception as ex:
+        return f"<h2>❌ Помилка: {str(ex)}</h2>", 500
 
 
 
