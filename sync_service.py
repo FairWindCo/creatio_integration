@@ -254,8 +254,8 @@ def user_for_rights_update():
     table_fields = [
         ("Name", "Ім'я"),
         ("Active", "Активний"),
-        ("MscActivity", "Працюэ"),
-        ("MscReasonForTemporaryAbsence", "Причина выдсутності"),
+        ("MscActivity", "Працює"),
+        ("MscReasonForTemporaryAbsence", "Причина відсутності"),
     ]
 
     html_template = """
@@ -331,7 +331,7 @@ def health():
                 "user_records_in_db": user_records_count,
             },
             "rights_sync_stat":{
-                "updated_users": new_user_record,
+                "updated_users": user_rights_changed,
             },
                     "ldap_sync_stat":{
                         "ldap_record_created":ldap_record_created, 
